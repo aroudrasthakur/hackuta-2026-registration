@@ -5,12 +5,13 @@ import {
   cooldownStatusFromExpiry,
   formatOtpResendLabel,
   getCooldownWaitSeconds,
+  getOtpSendErrorMessage,
   mergeCooldownExpiry,
+  isOtpRateLimitError,
   OTP_HOURLY_LIMIT_MESSAGE,
   OTP_RESEND_COOLDOWN_SECONDS,
   startCooldownExpiry,
   hasPendingOtpCode,
-  shouldShowOtpSendCooldown,
 } from "../../../shared/auth/otpRateLimit";
 import { isValidEmailSyntax, normalizeEmail } from "../../../shared/lib/normalizeEmail";
 import { OtpCodeInput } from "../../components/OtpCodeInput";
@@ -129,26 +130,50 @@ export default function SignInPage() {
     }
   }, [isAuthenticated, isLoading, routeAfterSignIn, routing.isAuthenticated, routing.isLoading]);
 
-  const syncOtpSendStatus = useCallback(
-    async (normalized: string) => {
-      const status = await fetchOtpCooldown(normalized);
+  const advanceToOtpStep = useCallback((normalized: string) => {
+    setPendingOtpEmail(normalized);
+    setStayOnEmailStep(false);
+    setEmail(normalized);
+    setStep("otp");
+    setError(null);
+  }, []);
+
+  const readOtpSendStatus = useCallback(
+    async (normalized: string, retry = true) => {
+      let status = await fetchOtpCooldown(normalized);
+      if (retry && status.waitSeconds === 0 && !status.hourlyLimitReached) {
+        await new Promise((resolve) => window.setTimeout(resolve, 400));
+        status = await fetchOtpCooldown(normalized);
+      }
       syncCooldownFromServer(status);
+      return status;
+    },
+    [fetchOtpCooldown, syncCooldownFromServer],
+  );
+
+  const handleOtpSendFailure = useCallback(
+    async (normalized: string, error: unknown) => {
+      const status = await readOtpSendStatus(normalized);
       setEmail(normalized);
 
       if (hasPendingOtpCode(status)) {
-        setError(null);
-        setStep("otp");
-        return true;
+        advanceToOtpStep(normalized);
+        return;
       }
 
-      if (shouldShowOtpSendCooldown(status)) {
-        setError(null);
-        return true;
+      if (status.hourlyLimitReached) {
+        setError(OTP_HOURLY_LIMIT_MESSAGE);
+        return;
       }
 
-      return false;
+      if (error instanceof Error && isOtpRateLimitError(error.message)) {
+        advanceToOtpStep(normalized);
+        return;
+      }
+
+      setError(getOtpSendErrorMessage(error, import.meta.env.DEV) ?? OTP_SEND_FAILED_MESSAGE);
     },
-    [fetchOtpCooldown, syncCooldownFromServer],
+    [advanceToOtpStep, readOtpSendStatus],
   );
 
   const normalizedEmail = normalizeEmail(email);
@@ -181,20 +206,15 @@ export default function SignInPage() {
   };
 
   const sendOtp = async (normalized: string) => {
-    setPendingOtpEmail(normalized);
-    setStayOnEmailStep(false);
-
     if (mockAuth.enabled) {
       mockAuth.requestOtp(normalized);
-      setEmail(normalized);
-      setStep("otp");
+      advanceToOtpStep(normalized);
       startLocalCooldown(OTP_RESEND_COOLDOWN_SECONDS);
       return;
     }
 
     await signIn("email", { email: normalized });
-    setEmail(normalized);
-    setStep("otp");
+    advanceToOtpStep(normalized);
     await beginOtpCooldown(normalized);
   };
 
@@ -234,24 +254,21 @@ export default function SignInPage() {
     const preflight = await fetchOtpCooldown(normalized);
     syncCooldownFromServer(preflight);
     if (hasPendingOtpCode(preflight)) {
-      setEmail(normalized);
-      setStep("otp");
+      advanceToOtpStep(normalized);
       setPending(false);
       return;
     }
     if (preflight.hourlyLimitReached) {
       setEmail(normalized);
+      setError(OTP_HOURLY_LIMIT_MESSAGE);
       setPending(false);
       return;
     }
 
     try {
       await sendOtp(normalized);
-    } catch {
-      const handled = await syncOtpSendStatus(normalized);
-      if (!handled) {
-        setError(OTP_SEND_FAILED_MESSAGE);
-      }
+    } catch (error) {
+      await handleOtpSendFailure(normalized, error);
     } finally {
       setPending(false);
     }
@@ -306,11 +323,8 @@ export default function SignInPage() {
 
     try {
       await sendOtp(normalized);
-    } catch {
-      const handled = await syncOtpSendStatus(normalized);
-      if (!handled) {
-        setError("Could not resend the code. Please try again later.");
-      }
+    } catch (error) {
+      await handleOtpSendFailure(normalized, error);
     } finally {
       setPending(false);
     }
@@ -325,9 +339,11 @@ export default function SignInPage() {
     : formatOtpResendLabel(cooldown.waitSeconds);
   const sendCodeLabel = pending
     ? "Sending…"
-    : emailCooldown.waitSeconds > 0
-      ? `Send code in ${emailCooldown.waitSeconds}s`
-      : "Send code";
+    : emailCooldown.hourlyLimitReached
+      ? OTP_HOURLY_LIMIT_MESSAGE
+      : emailCooldown.waitSeconds > 0
+        ? `Send code in ${emailCooldown.waitSeconds}s`
+        : "Send code";
 
   const shellTitle = step === "email" ? "Sign in" : "Check your email";
   const shellSubtitle: ReactNode =

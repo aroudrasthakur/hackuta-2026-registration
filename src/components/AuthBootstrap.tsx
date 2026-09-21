@@ -18,7 +18,8 @@ export function AuthBootstrap({ children }: { children: ReactNode }) {
   const bootstrappingRef = useRef(false);
 
   useEffect(() => {
-    if (isLoading || sessionReady || bootstrappingRef.current) return;
+    if (sessionReady || bootstrappingRef.current) return;
+    if (isLoading) return;
 
     bootstrappingRef.current = true;
     void (async () => {
@@ -33,7 +34,9 @@ export function AuthBootstrap({ children }: { children: ReactNode }) {
     })();
   }, [isAuthenticated, isLoading, sessionReady, signOut]);
 
-  if (isLoading || !sessionReady) {
+  // Only block the initial auth read. Do not unmount the tree when isLoading
+  // flips during sign-in actions — that would reset SignInPage step state.
+  if (!sessionReady) {
     return <AuthLoadingScreen />;
   }
 

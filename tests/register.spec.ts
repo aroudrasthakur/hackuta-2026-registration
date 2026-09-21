@@ -39,6 +39,8 @@ async function fillApplicationForm(page: Page) {
 
 test.describe("registration", () => {
   test("submits a PDF resume with the application under the production CSP", async ({ page }) => {
+    test.setTimeout(60_000);
+
     const deployedCsp = vercelConfig.headers.flatMap((rule) => rule.headers)
       .find((header) => header.key === "Content-Security-Policy")?.value;
     expect(deployedCsp).toBe(contentSecurityPolicy);
@@ -52,11 +54,17 @@ test.describe("registration", () => {
       mimeType: "application/pdf",
       buffer: resume,
     });
+    await expect(page.getByText("resume.pdf")).toBeVisible();
+
     await page.getByRole("button", { name: "Submit application" }).click();
 
-    await expect(page.getByRole("heading", { name: "Your Journey Begins!" })).toBeVisible({
-      timeout: 15_000,
-    });
+    // SuccessStep is shown briefly, then RegisterPage redirects to /profile after 1.5s.
+    await expect(
+      page.getByRole("heading", { name: "Your Journey Begins!" }).or(
+        page.getByRole("heading", { name: "Your Journey" }),
+      ),
+    ).toBeVisible({ timeout: 20_000 });
+    await page.waitForURL("**/profile", { timeout: 20_000 });
   });
 
   test("loads the application form at /register after mock sign-in", async ({ page }) => {

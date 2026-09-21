@@ -1,18 +1,40 @@
 import { v } from "convex/values";
-import {
-  OTP_RESEND_COOLDOWN_SECONDS,
-  OTP_SEND_MAX_PER_HOUR,
-} from "../shared/auth/otpRateLimit";
-import { internalMutation } from "./_generated/server";
+import { OTP_SEND_MAX_PER_HOUR } from "../shared/auth/otpRateLimit";
+import { internalMutation, query } from "./_generated/server";
 import { normalizeEmail } from "./lib/normalizeEmail";
+import { lookupOtpSendStatus, OTP_SEND_WINDOW_MS } from "./lib/otpSendStatus";
 import { CONTACT_FORM_BUCKET, OTP_SEND_BUCKET } from "./lib/rateLimitBuckets";
 
-export const OTP_RESEND_COOLDOWN_MS = OTP_RESEND_COOLDOWN_SECONDS * 1000;
-export const OTP_SEND_WINDOW_MS = 60 * 60 * 1000;
+export { OTP_RESEND_COOLDOWN_MS, OTP_SEND_WINDOW_MS } from "./lib/otpSendStatus";
 export { OTP_SEND_MAX_PER_HOUR };
 
 export const CONTACT_FORM_WINDOW_MS = 10 * 60 * 1000;
 export const CONTACT_FORM_MAX_PER_WINDOW = 5;
+
+export const getOtpSendCooldown = query({
+  args: { email: v.string() },
+  handler: async (ctx, { email }) => lookupOtpSendStatus(ctx, email),
+});
+
+export const clearOtpSendLimitsForEmail = internalMutation({
+  args: { email: v.string() },
+  handler: async (ctx, { email }) => {
+    const normalized = normalizeEmail(email);
+    if (!normalized) return { deleted: 0 };
+
+    const rows = await ctx.db
+      .query("rateLimits")
+      .withIndex("by_bucket_createdAt", (q) => q.eq("bucket", OTP_SEND_BUCKET))
+      .filter((q) => q.eq(q.field("key"), normalized))
+      .collect();
+
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+    }
+
+    return { deleted: rows.length };
+  },
+});
 
 export const assertOtpSendAllowed = internalMutation({
   args: { email: v.string() },
@@ -22,25 +44,11 @@ export const assertOtpSendAllowed = internalMutation({
       throw new Error("Invalid email.");
     }
 
-    const now = Date.now();
-    const windowStart = now - OTP_SEND_WINDOW_MS;
-    const recent = await ctx.db
-      .query("rateLimits")
-      .withIndex("by_bucket_createdAt", (q) => q.eq("bucket", OTP_SEND_BUCKET))
-      .filter((q) =>
-        q.and(
-          q.eq(q.field("key"), normalized),
-          q.gte(q.field("createdAt"), windowStart),
-        ),
-      )
-      .collect();
-
-    if (recent.length >= OTP_SEND_MAX_PER_HOUR) {
+    const status = await lookupOtpSendStatus(ctx, normalized);
+    if (status.hourlyLimitReached) {
       throw new Error("Too many verification requests. Please try again later.");
     }
-
-    const lastSent = recent.reduce((latest, entry) => Math.max(latest, entry.createdAt), 0);
-    if (lastSent > 0 && now - lastSent < OTP_RESEND_COOLDOWN_MS) {
+    if (status.waitSeconds > 0) {
       throw new Error("Please wait before requesting another code.");
     }
   },

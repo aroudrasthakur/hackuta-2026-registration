@@ -120,9 +120,10 @@ describe("SignInPage extended", () => {
 
     await user.click(screen.getByRole("button", { name: /different email/i }));
 
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
     expect(
-      await screen.findByRole("button", { name: "Send code" }),
-    ).toBeInTheDocument();
+      screen.getByRole("button", { name: /Send code in \d+s/ }),
+    ).toBeDisabled();
   });
 
   it("allows OTP entry with 6 digits", async () => {
@@ -230,6 +231,33 @@ describe("SignInPage extended", () => {
     await user.click(screen.getByRole("button", { name: "Verify code" }));
 
     expect(await screen.findByText("Register Page")).toBeInTheDocument();
+  });
+
+  it("shows cooldown on the email step after returning from OTP", async () => {
+    const user = userEvent.setup();
+    renderSignIn();
+
+    await user.type(screen.getByLabelText(/^Email$/i), "test@example.com");
+    await user.click(screen.getByRole("button", { name: "Send code" }));
+    await user.click(screen.getByRole("button", { name: "Use a different email" }));
+
+    expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    expect(screen.queryByText(/You can send another in \d+s/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Send code in \d+s/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Back to enter code" })).toBeInTheDocument();
+  });
+
+  it("returns to OTP entry from the email step during cooldown", async () => {
+    const user = userEvent.setup();
+    renderSignIn();
+
+    await user.type(screen.getByLabelText(/^Email$/i), "test@example.com");
+    await user.click(screen.getByRole("button", { name: "Send code" }));
+    await user.click(screen.getByRole("button", { name: "Use a different email" }));
+    await user.click(screen.getByRole("button", { name: "Back to enter code" }));
+
+    expect(screen.getByRole("heading", { name: "Check your email" })).toBeInTheDocument();
+    expect(screen.getAllByRole("textbox")).toHaveLength(6);
   });
 
   it("shows resend countdown after sending a code", async () => {

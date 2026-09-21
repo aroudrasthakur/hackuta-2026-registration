@@ -27,6 +27,12 @@ export const syncUserRef = makeFunctionReference<
   { displayName?: string }
 >("registrations:syncUser");
 
+export const getOtpSendCooldownRef = makeFunctionReference<
+  "query",
+  { email: string },
+  { waitSeconds: number; hourlyLimitReached: boolean }
+>("rateLimits:getOtpSendCooldown");
+
 export const submitContactMessageRef = makeFunctionReference<
   "action",
   {

@@ -14,6 +14,7 @@ import {
 
 const modules = import.meta.glob("../../convex/**/*.ts", { eager: false });
 
+const getOtpSendCooldown = makeFunctionReference<"query">("rateLimits:getOtpSendCooldown");
 const assertOtpSendAllowed = makeFunctionReference<"mutation">("rateLimits:assertOtpSendAllowed");
 const recordOtpSend = makeFunctionReference<"mutation">("rateLimits:recordOtpSend");
 const assertContactSubmissionAllowed = makeFunctionReference<"mutation">(
@@ -24,6 +25,25 @@ const recordContactSubmission = makeFunctionReference<"mutation">(
 );
 
 describe("rateLimits", () => {
+  it("reports remaining OTP cooldown seconds", async () => {
+    const test = convexTest(schema, modules);
+    await test.run(async (ctx) => {
+      const email = "cooldown-status@example.com";
+      const now = Date.now();
+
+      await ctx.db.insert("rateLimits", {
+        bucket: OTP_SEND_BUCKET,
+        key: email,
+        createdAt: now - 15_000,
+      });
+
+      const status = await ctx.runQuery(getOtpSendCooldown, { email });
+      expect(status.hourlyLimitReached).toBe(false);
+      expect(status.waitSeconds).toBeGreaterThan(0);
+      expect(status.waitSeconds).toBeLessThanOrEqual(30);
+    });
+  });
+
   it("allows first OTP send", async () => {
     const test = convexTest(schema, modules);
     await expect(

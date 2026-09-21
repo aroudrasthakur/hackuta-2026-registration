@@ -1,14 +1,32 @@
-import type { GenericQueryCtx } from "convex/server";
-import type { DataModelFromSchemaDefinition } from "convex/server";
+import {
+  defineSchema,
+  defineTable,
+  type DataModelFromSchemaDefinition,
+  type GenericMutationCtx,
+  type GenericQueryCtx,
+} from "convex/server";
+import { v } from "convex/values";
 import {
   OTP_RESEND_COOLDOWN_SECONDS,
   OTP_SEND_MAX_PER_HOUR,
 } from "../../shared/auth/otpRateLimit";
 import { normalizeEmail } from "./normalizeEmail";
 import { OTP_SEND_BUCKET } from "./rateLimitBuckets";
-import type schema from "../schema";
 
-type QueryCtx = GenericQueryCtx<DataModelFromSchemaDefinition<typeof schema>>;
+/** Minimal schema for typing — full schema auth tables break GenericDataModel in CI. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- typeof inference only
+const rateLimitOnlySchema = defineSchema({
+  rateLimits: defineTable({
+    bucket: v.string(),
+    key: v.string(),
+    createdAt: v.number(),
+  }).index("by_bucket_createdAt", ["bucket", "createdAt"]),
+});
+
+type RateLimitDataModel = DataModelFromSchemaDefinition<typeof rateLimitOnlySchema>;
+type OtpSendLookupCtx =
+  | Pick<GenericQueryCtx<RateLimitDataModel>, "db">
+  | Pick<GenericMutationCtx<RateLimitDataModel>, "db">;
 
 export const OTP_RESEND_COOLDOWN_MS = OTP_RESEND_COOLDOWN_SECONDS * 1000;
 export const OTP_SEND_WINDOW_MS = 60 * 60 * 1000;
@@ -19,7 +37,7 @@ export type OtpSendStatus = {
 };
 
 export async function lookupOtpSendStatus(
-  ctx: QueryCtx,
+  ctx: OtpSendLookupCtx,
   email: string,
   now = Date.now(),
 ): Promise<OtpSendStatus> {

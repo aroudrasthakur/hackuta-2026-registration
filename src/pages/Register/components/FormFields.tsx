@@ -1,4 +1,8 @@
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
+import type {
+  InputHTMLAttributes,
+  ReactNode,
+  SelectHTMLAttributes,
+} from "react";
 import { fieldClass, labelClass, legendClass } from "./formFieldStyles";
 
 export function RequiredMark() {
@@ -20,7 +24,7 @@ export function FieldError({
   if (!message) return null;
 
   return (
-    <p id={id} className="text-xs text-red-300">
+    <p id={id} className="text-xs font-medium text-red-600">
       {message}
     </p>
   );
@@ -89,19 +93,36 @@ export function SelectField({
         {label}
         {required ? <RequiredMark /> : null}
       </span>
-      <select
-        id={id}
-        required={required}
-        aria-invalid={!!error}
-        aria-describedby={error ? errorId : undefined}
-        className={className ?? fieldClass(error)}
-        {...selectProps}
-      >
-        <option value="" disabled>
-          {placeholder}
-        </option>
-        {children}
-      </select>
+      <div className="relative w-full">
+        <select
+          id={id}
+          required={required}
+          aria-invalid={!!error}
+          aria-describedby={error ? errorId : undefined}
+          className={`${className ?? fieldClass(error)} appearance-none pr-10 cursor-pointer`}
+          {...selectProps}
+        >
+          <option value="" disabled>
+            {placeholder}
+          </option>
+          {children}
+        </select>
+        {/* Custom dropdown arrow */}
+        <div
+          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
+          aria-hidden="true"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M4 6l4 4 4-4"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
+      </div>
       <FieldError id={errorId} message={error} />
     </label>
   );

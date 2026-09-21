@@ -1,12 +1,29 @@
+import type { ReactNode } from "react";
 import { useQuery } from "convex/react";
 import { useNavigate } from "react-router-dom";
 import { OdysseyButton } from "../../components/OdysseyButton";
 import { PageShell } from "../../components/PageShell";
+import { StormPageFrame } from "../../components/StormPageFrame";
 import { useMockAuth } from "../../components/MockAuthProvider";
 import { getMyApplicantDashboardRef } from "../../convex/api";
 import { getConvexClient } from "../../convex/client";
 import { ApplicantTimeline } from "./ApplicantTimeline";
 import { useSessionAuth } from "../../hooks/useSessionAuth";
+
+const PROFILE_SHELL = {
+  title: "Your Journey",
+  subtitle: "HackUTA 2026 applicant dashboard",
+} as const;
+
+function ProfilePageShell({ children }: { children: ReactNode }) {
+  return (
+    <StormPageFrame>
+      <PageShell {...PROFILE_SHELL} frameless>
+        {children}
+      </PageShell>
+    </StormPageFrame>
+  );
+}
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -30,11 +47,11 @@ export default function ProfilePage() {
 
   if (!mockAuth.enabled && dashboard === undefined) {
     return (
-      <PageShell title="Your Journey" subtitle="HackUTA 2026 applicant dashboard">
+      <ProfilePageShell>
         <p className="text-sm text-(--ocean)" role="status" aria-live="polite">
           Loading your application…
         </p>
-      </PageShell>
+      </ProfilePageShell>
     );
   }
 
@@ -74,18 +91,18 @@ export default function ProfilePage() {
 
   if (!profile) {
     return (
-      <PageShell title="Your Journey" subtitle="HackUTA 2026 applicant dashboard">
+      <ProfilePageShell>
         <p className="text-sm text-red-600" role="alert">
           We couldn&apos;t load your application. Please try again.
         </p>
-      </PageShell>
+      </ProfilePageShell>
     );
   }
 
   const registration = profile.registration;
 
   return (
-    <PageShell title="Your Journey" subtitle="HackUTA 2026 applicant dashboard">
+    <ProfilePageShell>
       <div className="flex flex-col gap-8">
         <div className="border-b-2 border-(--sand) pb-6">
           <h2 className="font-(family-name:--font-display) text-2xl text-(--ink)">
@@ -187,6 +204,6 @@ export default function ProfilePage() {
           </OdysseyButton>
         </div>
       </div>
-    </PageShell>
+    </ProfilePageShell>
   );
 }

@@ -8,6 +8,8 @@ type PageShellProps = {
   title?: string;
   subtitle?: string;
   showHeader?: boolean;
+  frameless?: boolean;
+  footer?: ReactNode;
 };
 
 export function PageShell({
@@ -15,7 +17,73 @@ export function PageShell({
   title,
   subtitle,
   showHeader = true,
+  frameless = false,
+  footer,
 }: PageShellProps) {
+  const content = (
+    <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-3xl flex-col items-center px-6 py-12 sm:py-16">
+      {showHeader ? (
+        <div className="mb-10 flex flex-col items-center gap-4">
+          <a
+            href={LANDING_URL}
+            aria-label="HackUTA home"
+            className="inline-flex transition-opacity hover:opacity-80"
+          >
+            <Logo
+              className="h-14 w-auto sm:h-16"
+              variant="light"
+              layout="header"
+              decorative
+            />
+          </a>
+          {title ? (
+            <div className="text-center">
+              <h1 className="font-(family-name:--font-display) text-2xl text-(--ink) sm:text-3xl">
+                {title}
+              </h1>
+              {subtitle ? (
+                <p className="mt-2 text-sm text-(--ocean)">{subtitle}</p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="relative w-full">
+        <div
+          className="absolute -left-2 -top-2 h-8 w-8 border-l-2 border-t-2 border-(--ink)/20"
+          aria-hidden="true"
+        />
+        <div
+          className="absolute -right-2 -top-2 h-8 w-8 border-r-2 border-t-2 border-(--ink)/20"
+          aria-hidden="true"
+        />
+        <div
+          className="absolute -bottom-2 -left-2 h-8 w-8 border-b-2 border-l-2 border-(--ink)/20"
+          aria-hidden="true"
+        />
+        <div
+          className="absolute -bottom-2 -right-2 h-8 w-8 border-b-2 border-r-2 border-(--ink)/20"
+          aria-hidden="true"
+        />
+
+        <div className="relative overflow-hidden rounded-2xl border-2 border-(--sand) bg-(--light) p-8 shadow-[0_10px_40px_rgba(26,58,82,0.12)] sm:p-12">
+          <div
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(26,58,82,0.02),transparent_60%)]"
+            aria-hidden="true"
+          />
+          <div className="relative z-10">{children}</div>
+        </div>
+      </div>
+
+      {footer}
+    </div>
+  );
+
+  if (frameless) {
+    return content;
+  }
+
   return (
     <main className="register-page relative min-h-screen overflow-hidden bg-(--clay)">
       <div
@@ -38,61 +106,7 @@ export function PageShell({
         </div>
       </div>
 
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-3xl flex-col items-center px-6 py-12 sm:py-16">
-        {showHeader ? (
-          <div className="mb-10 flex flex-col items-center gap-4">
-            <a
-              href={LANDING_URL}
-              aria-label="HackUTA home"
-              className="inline-flex transition-opacity hover:opacity-80"
-            >
-              <Logo
-                className="h-14 w-auto sm:h-16"
-                variant="light"
-                layout="header"
-                decorative
-              />
-            </a>
-            {title ? (
-              <div className="text-center">
-                <h1 className="font-(family-name:--font-display) text-2xl text-(--ink) sm:text-3xl">
-                  {title}
-                </h1>
-                {subtitle ? (
-                  <p className="mt-2 text-sm text-(--ocean)">{subtitle}</p>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
-        <div className="relative w-full">
-          <div
-            className="absolute -left-2 -top-2 h-8 w-8 border-l-2 border-t-2 border-(--ink)/20"
-            aria-hidden="true"
-          />
-          <div
-            className="absolute -right-2 -top-2 h-8 w-8 border-r-2 border-t-2 border-(--ink)/20"
-            aria-hidden="true"
-          />
-          <div
-            className="absolute -bottom-2 -left-2 h-8 w-8 border-b-2 border-l-2 border-(--ink)/20"
-            aria-hidden="true"
-          />
-          <div
-            className="absolute -bottom-2 -right-2 h-8 w-8 border-b-2 border-r-2 border-(--ink)/20"
-            aria-hidden="true"
-          />
-
-          <div className="relative overflow-hidden rounded-2xl border-2 border-(--sand) bg-(--light) p-8 shadow-[0_10px_40px_rgba(26,58,82,0.12)] sm:p-12">
-            <div
-              className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(26,58,82,0.02),transparent_60%)]"
-              aria-hidden="true"
-            />
-            <div className="relative z-10">{children}</div>
-          </div>
-        </div>
-      </div>
+      {content}
     </main>
   );
 }

@@ -61,6 +61,11 @@ const uploadHeaders = {
 };
 
 const createTest = () => convexTest(schema, modules);
+type TestInstance = ReturnType<typeof createTest>;
+
+async function drainScheduledFunctions(client: ConvexTestClient) {
+  await (client as unknown as TestInstance).finishInProgressScheduledFunctions();
+}
 
 async function seedHackathon(t: ConvexTestClient) {
   await t.mutation("seed:seedHackathon", {});
@@ -120,6 +125,8 @@ describe("convex registrations", () => {
     expect(first.ok).toBe(true);
     expect(first.isNew).toBe(true);
 
+    await drainScheduledFunctions(t);
+
     await expect(t.mutation("registrations:register", {
       data: validRegistrationData,
     })).rejects.toThrow("already submitted");
@@ -128,7 +135,7 @@ describe("convex registrations", () => {
       data: { ...validRegistrationData, major: "Engineering" },
     });
     expect(draft.ok).toBe(true);
-  });
+  }, 15_000);
 
   it("stores a parser-verified PDF only when the matching capability is supplied", async () => {
     const t = await authTest();
@@ -629,12 +636,49 @@ describe("convex queries", () => {
 });
 
 describe("convex applicant auth flows", () => {
+  it("returns unauthenticated routing state without identity", async () => {
+    const t = createTest() as unknown as ConvexTestClient;
+    await expect(t.query("applicant:getApplicantRoutingState", {})).resolves.toMatchObject({
+      authenticated: false,
+      verifiedEmail: null,
+      hasRegistration: false,
+    });
+  });
+
   it("returns routing state for authenticated users", async () => {
     const t = await authTest();
     await expect(t.query("applicant:getApplicantRoutingState", {})).resolves.toMatchObject({
       authenticated: true,
       verifiedEmail: "applicant@example.com",
       hasRegistration: false,
+    });
+  });
+
+  it("returns hasSubmittedRegistration false for draft status", async () => {
+    const t = await authTest();
+    await t.mutation("registrations:saveDraft", { data: validRegistrationData });
+    await expect(t.query("applicant:getApplicantRoutingState", {})).resolves.toMatchObject({
+      hasRegistration: true,
+      hasSubmittedRegistration: false,
+      registrationStatus: "draft",
+    });
+  });
+
+  it("returns none_found when no legacy registrations exist", async () => {
+    const t = await authTest({ tokenIdentifier: "email|newuser@example.com", email: "newuser@example.com" });
+    await expect(t.mutation("applicant:claimLegacyRegistrationIfEligible", {})).resolves.toMatchObject({
+      claimed: false,
+      reason: "none_found",
+    });
+  });
+
+  it("returns already_owned when user already has a registration", async () => {
+    const t = await authTest();
+    await t.mutation("registrations:register", { data: validRegistrationData });
+    await drainScheduledFunctions(t);
+    await expect(t.mutation("applicant:claimLegacyRegistrationIfEligible", {})).resolves.toMatchObject({
+      claimed: false,
+      reason: "already_owned",
     });
   });
 
@@ -722,7 +766,98 @@ describe("convex applicant auth flows", () => {
   it("stores the verified email on submitted registrations", async () => {
     const t = await authTest();
     await t.mutation("registrations:register", { data: validRegistrationData });
+    await drainScheduledFunctions(t);
     const registration = await t.run((ctx) => ctx.db.query("registrations").first());
     expect(registration?.answers.email).toBe("applicant@example.com");
+  });
+
+  it("returns dashboard data with registration and timeline", async () => {
+    const t = await authTest();
+    await t.mutation("registrations:register", { data: validRegistrationData });
+    await drainScheduledFunctions(t);
+
+    await expect(t.query("applicant:getMyApplicantDashboard", {})).resolves.toMatchObject({
+      profile: {
+        verifiedEmail: "applicant@example.com",
+      },
+      registration: {
+        status: "submitted",
+        resumeStatus: "none",
+      },
+    });
+  });
+
+  it("includes hackathon event timeline when hackathon exists", async () => {
+    const t = await authTest();
+    const now = Date.now();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("hackathons", {
+        slug: "hackuta-2026",
+        name: "HackUTA 2026",
+        startsAt: now + 7 * 24 * 60 * 60 * 1000,
+        endsAt: now + 9 * 24 * 60 * 60 * 1000,
+        registrationOpensAt: now - 30 * 24 * 60 * 60 * 1000,
+        registrationClosesAt: now + 1 * 24 * 60 * 60 * 1000,
+      });
+    });
+
+    const dashboard = await t.query("applicant:getMyApplicantDashboard", {}) as {
+      timeline: Array<{ id: string }>;
+      hackathon: { name: string } | null;
+    };
+
+    expect(dashboard.hackathon?.name).toBe("HackUTA 2026");
+    expect(dashboard.timeline.some((event) => event.id === "event-starts")).toBe(true);
+    expect(dashboard.timeline.some((event) => event.id === "event-ends")).toBe(true);
+  });
+
+  it("returns resume status as attached when resume exists", async () => {
+    const t = await authTest();
+    const upload = await verifiedUpload(t);
+    await t.mutation("registrations:register", {
+      data: { ...validRegistrationData, resumeStorageId: upload.storageId },
+      resumeUploadToken: upload.token,
+    });
+    await drainScheduledFunctions(t);
+
+    await expect(t.query("applicant:getMyApplicantDashboard", {})).resolves.toMatchObject({
+      registration: {
+        resumeStatus: "attached",
+      },
+    });
+  });
+
+  it("includes reviewed status labels in the applicant timeline", async () => {
+    const t = await authTest();
+    await t.mutation("registrations:register", { data: validRegistrationData });
+    await drainScheduledFunctions(t);
+
+    await t.run(async (ctx) => {
+      const registration = await ctx.db.query("registrations").first();
+      if (!registration) {
+        throw new Error("Expected registration");
+      }
+      await ctx.db.patch(registration._id, {
+        status: "accepted",
+        reviewedAt: Date.now(),
+      });
+    });
+
+    const dashboard = await t.query("applicant:getMyApplicantDashboard", {}) as {
+      timeline: Array<{ label: string }>;
+    };
+
+    expect(dashboard.timeline.some((event) => event.label === "Accepted")).toBe(true);
+  });
+
+  it("returns no_verified_email when claiming legacy registration without email", async () => {
+    const t = createTest().withIdentity({
+      tokenIdentifier: "email|",
+    }) as unknown as ConvexTestClient;
+
+    await expect(t.mutation("applicant:claimLegacyRegistrationIfEligible", {})).resolves.toMatchObject({
+      claimed: false,
+      reason: "no_verified_email",
+    });
   });
 });

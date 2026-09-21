@@ -15,6 +15,10 @@ vi.mock("convex/react", async (importOriginal) => {
   };
 });
 
+vi.mock("../../src/components/SignInStormBackdrop", () => ({
+  SignInStormBackdrop: () => null,
+}));
+
 vi.mock("../../src/hooks/useApplicantRouting", () => ({
   useApplicantRouting: () => ({
     isLoading: false,
@@ -46,25 +50,38 @@ describe("SignInPage", () => {
 
   it("shows the email entry step", () => {
     renderSignIn();
-    expect(screen.getByLabelText(/Email address/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Send verification code" })).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Email$/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send code" })).toBeInTheDocument();
   });
 
   it("rejects an invalid email", async () => {
     const user = userEvent.setup();
     renderSignIn();
-    await user.type(screen.getByLabelText(/Email address/), "not-an-email");
-    await user.click(screen.getByRole("button", { name: "Send verification code" }));
+    await user.type(screen.getByLabelText(/^Email$/i), "not-an-email");
+    await user.click(screen.getByRole("button", { name: "Send code" }));
     expect(screen.getByText("Please enter a valid email address.")).toBeInTheDocument();
+  });
+
+  it("shows the segmented OTP step after sending a code", async () => {
+    const user = userEvent.setup();
+    renderSignIn();
+    await user.type(screen.getByLabelText(/^Email$/i), "applicant@example.com");
+    await user.click(screen.getByRole("button", { name: "Send code" }));
+    expect(screen.getByRole("heading", { name: "Check your email" })).toBeInTheDocument();
+    expect(screen.getByText("applicant@example.com")).toBeInTheDocument();
+    expect(screen.getAllByRole("textbox")).toHaveLength(6);
   });
 
   it("preserves leading zeros in OTP entry", async () => {
     const user = userEvent.setup();
     renderSignIn();
-    await user.type(screen.getByLabelText(/Email address/), "applicant@example.com");
-    await user.click(screen.getByRole("button", { name: "Send verification code" }));
-    const codeInput = screen.getByLabelText(/Verification code/);
-    await user.type(codeInput, "042681");
-    expect(codeInput).toHaveValue("042681");
+    await user.type(screen.getByLabelText(/^Email$/i), "applicant@example.com");
+    await user.click(screen.getByRole("button", { name: "Send code" }));
+    const cells = screen.getAllByRole("textbox");
+    await user.click(cells[0]!);
+    await user.paste("042681");
+    expect(cells[0]).toHaveValue("0");
+    expect(cells[1]).toHaveValue("4");
+    expect(cells[5]).toHaveValue("1");
   });
 });

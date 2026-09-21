@@ -1,10 +1,14 @@
 import { v } from "convex/values";
+import {
+  OTP_RESEND_COOLDOWN_SECONDS,
+  OTP_SEND_MAX_PER_HOUR,
+} from "../shared/auth/otpRateLimit";
 import { internalMutation } from "./_generated/server";
 import { normalizeEmail } from "./lib/normalizeEmail";
 
-export const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
-export const OTP_SEND_MAX_PER_HOUR = 5;
+export const OTP_RESEND_COOLDOWN_MS = OTP_RESEND_COOLDOWN_SECONDS * 1000;
 export const OTP_SEND_WINDOW_MS = 60 * 60 * 1000;
+export { OTP_SEND_MAX_PER_HOUR };
 
 export const CONTACT_FORM_WINDOW_MS = 10 * 60 * 1000;
 export const CONTACT_FORM_MAX_PER_WINDOW = 5;

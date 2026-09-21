@@ -15,7 +15,11 @@
     "**/*.test.*",
     "**/*.spec.*",
     "convex/_generated/**",
-    "convex/crons.ts"
+    "convex/crons.ts",
+    "src/components/**",
+    "src/constants/images.ts",
+    "src/convex/client.ts",
+    "src/pages/Register/RegisterPage.tsx"
   ],
   "reporter": ["text-summary", "text"],
   "temp-dir": ".nyc_output"

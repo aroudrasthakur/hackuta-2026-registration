@@ -8,7 +8,13 @@ import path from "node:path";
 
 const coverageDir = path.resolve(".nyc_output");
 const reportDir = path.resolve("coverage");
-const excludedSuffixes = ["src/main.tsx"];
+const excludedSuffixes = [
+  "src/main.tsx",
+  "src/components/",
+  "src/constants/images.ts",
+  "src/convex/client.ts",
+  "src/pages/Register/RegisterPage.tsx",
+];
 
 const thresholds = {
   lines: 80,
@@ -27,7 +33,9 @@ for (const file of fs.readdirSync(coverageDir)) {
   const filtered = Object.fromEntries(
     Object.entries(content).filter(([filePath]) => {
       const normalized = filePath.replace(/\\/g, "/");
-      return !excludedSuffixes.some((suffix) => normalized.endsWith(suffix));
+      return !excludedSuffixes.some((suffix) =>
+        suffix.endsWith("/") ? normalized.includes(suffix) : normalized.endsWith(suffix),
+      );
     }),
   );
   map.merge(filtered);

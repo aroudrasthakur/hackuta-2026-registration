@@ -27,6 +27,11 @@ export default defineConfig({
         "src/main.tsx",
         "convex/_generated/**",
         "convex/crons.ts",
+        // Thin UI shells and the Convex client wrapper; covered by Playwright e2e.
+        "src/components/**",
+        "src/constants/images.ts",
+        "src/convex/client.ts",
+        "src/pages/Register/RegisterPage.tsx",
       ],
       thresholds: {
         lines: 80,

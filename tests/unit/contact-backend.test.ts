@@ -1,8 +1,10 @@
 import { convexTest } from "convex-test";
+import { makeFunctionReference } from "convex/server";
 import { describe, expect, it } from "vitest";
 import schema from "../../convex/schema";
 
 const modules = import.meta.glob("../../convex/**/*.ts", { eager: false });
+const submitContactMessage = makeFunctionReference<"action">("contact:submitContactMessage");
 
 const validContact = {
   name: "John Doe",
@@ -16,7 +18,7 @@ describe("contact backend", () => {
   it("rejects contact form with missing name", async () => {
     const test = convexTest(schema, modules);
     await expect(
-      test.action("contact:submitContactMessage", {
+      test.action(submitContactMessage, {
         ...validContact,
         name: "",
       }),
@@ -26,7 +28,7 @@ describe("contact backend", () => {
   it("rejects contact form with invalid email", async () => {
     const test = convexTest(schema, modules);
     await expect(
-      test.action("contact:submitContactMessage", {
+      test.action(submitContactMessage, {
         ...validContact,
         email: "invalid-email",
       }),
@@ -36,7 +38,7 @@ describe("contact backend", () => {
   it("rejects contact form with missing message", async () => {
     const test = convexTest(schema, modules);
     await expect(
-      test.action("contact:submitContactMessage", {
+      test.action(submitContactMessage, {
         ...validContact,
         message: "",
       }),
@@ -46,7 +48,7 @@ describe("contact backend", () => {
   it("blocks spam when honeypot is filled", async () => {
     const test = convexTest(schema, modules);
     await expect(
-      test.action("contact:submitContactMessage", {
+      test.action(submitContactMessage, {
         ...validContact,
         website: "http://spam.com",
       }),
@@ -55,7 +57,7 @@ describe("contact backend", () => {
 
   it("returns a generic error when email delivery is unavailable", async () => {
     const test = convexTest(schema, modules);
-    await expect(test.action("contact:submitContactMessage", validContact)).rejects.toThrow(
+    await expect(test.action(submitContactMessage, validContact)).rejects.toThrow(
       "We couldn't send your message. Please try again later.",
     );
   });
@@ -63,7 +65,7 @@ describe("contact backend", () => {
   it("handles missing client key gracefully", async () => {
     const test = convexTest(schema, modules);
     await expect(
-      test.action("contact:submitContactMessage", {
+      test.action(submitContactMessage, {
         name: validContact.name,
         email: validContact.email,
         message: validContact.message,
@@ -77,7 +79,7 @@ describe("contact backend", () => {
 
     for (let index = 0; index < 5; index += 1) {
       await expect(
-        test.action("contact:submitContactMessage", {
+        test.action(submitContactMessage, {
           ...validContact,
           clientKey,
           message: `Message ${index}`,
@@ -86,7 +88,7 @@ describe("contact backend", () => {
     }
 
     await expect(
-      test.action("contact:submitContactMessage", {
+      test.action(submitContactMessage, {
         ...validContact,
         clientKey,
         message: "One more message",

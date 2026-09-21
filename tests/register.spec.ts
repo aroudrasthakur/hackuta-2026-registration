@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "./playwright-coverage";
+import type { Page } from "@playwright/test";
+import { test, expect } from "./playwright-coverage";
 import { MIN_GRADUATION_YEAR } from "../shared/registration/constants";
 import { contentSecurityPolicy } from "../security/csp";
 import { MOCK_OTP } from "../src/components/MockAuthProvider";

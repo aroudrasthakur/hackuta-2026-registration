@@ -201,8 +201,7 @@ describe("ResumeUpload", () => {
     });
   });
 
-  it("handles keyboard interaction on upload area", async () => {
-    const user = userEvent.setup();
+  it("handles keyboard interaction on upload area", () => {
     render(
       <ResumeUpload
         file={null}

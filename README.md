@@ -161,9 +161,9 @@ Find settings under **Email Accounts → Connect Devices**:
 ```bash
 npx convex env set SMTP_HOST mail.example.com
 npx convex env set SMTP_PORT 465          # 465 = implicit TLS; 587 = STARTTLS
-npx convex env set SMTP_USER no-reply@example.com
+npx convex env set SMTP_USER noreply@hackuta.org
 npx convex env set SMTP_PASSWORD your-mailbox-password
-npx convex env set EMAIL_FROM no-reply@example.com
+npx convex env set EMAIL_FROM noreply@hackuta.org
 npx convex env set CONTACT_EMAIL_TO hello@hackuta.org
 ```
 

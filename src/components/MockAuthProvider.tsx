@@ -1,61 +1,19 @@
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+  isMockApiEnabled,
+  MOCK_OTP,
+  type MockAuthScenario,
+} from "../constants/mockAuth";
+import {
+  defaultMockAuthValue,
+  MockAuthContext,
+  type MockAuthContextValue,
+} from "../hooks/mockAuthContext";
 
-export type MockAuthScenario =
-  | "signedOut"
-  | "otpPending"
-  | "signedInNew"
-  | "signedInReturning";
-
-type MockAuthContextValue = {
-  enabled: boolean;
-  isLoading: boolean;
-  isAuthenticated: boolean;
-  verifiedEmail: string | null;
-  hasRegistration: boolean;
-  hasSubmittedRegistration: boolean;
-  registrationStatus: string | null;
-  scenario: MockAuthScenario;
-  setScenario: (scenario: MockAuthScenario) => void;
-  requestOtp: (email: string) => void;
-  verifyOtp: (code: string) => boolean;
-  signOut: () => void;
-};
-
-const MOCK_OTP = "042681";
-
-const defaultValue: MockAuthContextValue = {
-  enabled: false,
-  isLoading: false,
-  isAuthenticated: false,
-  verifiedEmail: null,
-  hasRegistration: false,
-  hasSubmittedRegistration: false,
-  registrationStatus: null,
-  scenario: "signedOut",
-  setScenario: () => undefined,
-  requestOtp: () => undefined,
-  verifyOtp: () => false,
-  signOut: () => undefined,
-};
-
-const MockAuthContext = createContext<MockAuthContextValue>(defaultValue);
-
-export function useMockAuth() {
-  return useContext(MockAuthContext);
-}
-
-export function isMockApiEnabled() {
-  return import.meta.env.VITE_USE_MOCK_API === "true" && !import.meta.env.PROD;
-}
-
-function scenarioState(scenario: MockAuthScenario, email: string | null): Omit<
+function scenarioState(
+  scenario: MockAuthScenario,
+  email: string | null,
+): Omit<
   MockAuthContextValue,
   "enabled" | "scenario" | "setScenario" | "requestOtp" | "verifyOtp" | "signOut"
 > {
@@ -136,7 +94,7 @@ export function MockAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<MockAuthContextValue>(() => {
-    if (!enabled) return defaultValue;
+    if (!enabled) return defaultMockAuthValue;
 
     const email = verifiedEmail ?? pendingEmail;
     const base = scenarioState(scenario, email);
@@ -156,5 +114,3 @@ export function MockAuthProvider({ children }: { children: ReactNode }) {
     <MockAuthContext.Provider value={value}>{children}</MockAuthContext.Provider>
   );
 }
-
-export { MOCK_OTP };

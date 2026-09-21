@@ -2,7 +2,7 @@ import { makeFunctionReference } from "convex/server";
 import type { RegistrationPayload } from "../../../shared/registration/types";
 import { validateResume } from "../../../shared/registration/resume";
 import { getConvexClient, normalizeConvexUrl } from "../../convex/client";
-import { isMockApiEnabled } from "../../components/MockAuthProvider";
+import { isMockApiEnabled } from "../../constants/mockAuth";
 
 const USE_MOCK_API = isMockApiEnabled();
 

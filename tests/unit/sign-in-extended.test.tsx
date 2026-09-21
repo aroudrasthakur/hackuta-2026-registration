@@ -2,7 +2,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MOCK_OTP, MockAuthProvider } from "../../src/components/MockAuthProvider";
+import { MockAuthProvider } from "../../src/components/MockAuthProvider";
+import { MOCK_OTP } from "../../src/constants/mockAuth";
 import { SessionAuthProvider } from "../../src/hooks/useSessionAuth";
 import SignInPage from "../../src/pages/SignIn/SignInPage";
 

@@ -1,6 +1,6 @@
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { createContext, useContext, type ReactNode } from "react";
-import { useMockAuth } from "../components/MockAuthProvider";
+import { useMockAuth } from "./useMockAuth";
 
 type SessionAuthValue = {
   isLoading: boolean;

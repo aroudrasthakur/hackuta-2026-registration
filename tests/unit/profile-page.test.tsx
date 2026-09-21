@@ -3,11 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  MockAuthProvider,
-  useMockAuth,
-  type MockAuthScenario,
-} from "../../src/components/MockAuthProvider";
+import { MockAuthProvider } from "../../src/components/MockAuthProvider";
+import { type MockAuthScenario } from "../../src/constants/mockAuth";
+import { useMockAuth } from "../../src/hooks/useMockAuth";
 import { SessionAuthProvider } from "../../src/hooks/useSessionAuth";
 import ProfilePage from "../../src/pages/Profile/ProfilePage";
 

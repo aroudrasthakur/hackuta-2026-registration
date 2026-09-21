@@ -18,7 +18,7 @@ import { OtpCodeInput } from "../../components/OtpCodeInput";
 
 import { SignInShell } from "../../components/SignInShell";
 
-import { useMockAuth } from "../../components/MockAuthProvider";
+import { useMockAuth } from "../../hooks/useMockAuth";
 
 import { claimLegacyRegistrationRef } from "../../convex/api";
 

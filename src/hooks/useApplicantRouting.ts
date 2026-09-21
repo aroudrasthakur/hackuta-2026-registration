@@ -1,7 +1,7 @@
 import { useQuery } from "convex/react";
 import { getApplicantRoutingStateRef } from "../convex/api";
 import { getConvexClient } from "../convex/client";
-import { useMockAuth } from "../components/MockAuthProvider";
+import { useMockAuth } from "./useMockAuth";
 import { useSessionAuth } from "./useSessionAuth";
 
 export function useApplicantRouting() {

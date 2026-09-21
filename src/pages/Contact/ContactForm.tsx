@@ -1,7 +1,8 @@
 import { useAction } from "convex/react";
 import { useState, type FormEvent } from "react";
 import { OdysseyButton } from "../../components/OdysseyButton";
-import { isMockApiEnabled, useMockAuth } from "../../components/MockAuthProvider";
+import { isMockApiEnabled } from "../../constants/mockAuth";
+import { useMockAuth } from "../../hooks/useMockAuth";
 import { submitContactMessageRef } from "../../convex/api";
 import { fieldClass, labelClass, legendClass } from "../Register/components/formFieldStyles";
 

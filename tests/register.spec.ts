@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 import { test, expect } from "./playwright-coverage";
 import { MIN_GRADUATION_YEAR } from "../shared/registration/constants";
 import { contentSecurityPolicy } from "../security/csp";
-import { MOCK_OTP } from "../src/components/MockAuthProvider";
+import { MOCK_OTP } from "../src/constants/mockAuth";
 import vercelConfig from "../vercel.json" with { type: "json" };
 
 async function signInAsNewApplicant(page: Page) {
@@ -33,8 +33,8 @@ async function fillApplicationForm(page: Page) {
   await page.getByLabel("How did you hear about HackUTA?", { exact: false }).selectOption("Discord");
   await page.getByLabel("Emergency contact name", { exact: false }).fill("Jane Test");
   await page.getByLabel("Emergency contact phone", { exact: false }).fill("5559876543");
-  await page.locator("#codeOfConductAgreed").check();
-  await page.locator("#mlhDataSharingConsent").check();
+  await page.getByRole("checkbox", { name: /MLH Code of Conduct/i }).check({ force: true });
+  await page.getByRole("checkbox", { name: /authorize HackUTA to share/i }).check({ force: true });
 }
 
 test.describe("registration", () => {
@@ -47,7 +47,7 @@ test.describe("registration", () => {
 
     await signInAsNewApplicant(page);
     await fillApplicationForm(page);
-    await page.getByLabel("Resume (optional)").setInputFiles({
+    await page.locator("#resume-upload").setInputFiles({
       name: "resume.pdf",
       mimeType: "application/pdf",
       buffer: resume,
@@ -74,7 +74,7 @@ test.describe("registration", () => {
 
     await expect(page.getByText("First name is required.")).toBeVisible();
     await expect(
-      page.getByText("One or more of your answers is invalid. Please review the fields below."),
+      page.getByRole("alert").filter({ hasText: /One or more of your answers is invalid/ }),
     ).toBeVisible();
     await expect(page.getByRole("heading", { name: "Your Journey Begins!" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Tell us about yourself" })).toBeVisible();

@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { OdysseyButton } from "../../components/OdysseyButton";
 import { PageShell } from "../../components/PageShell";
 import { StormPageFrame } from "../../components/StormPageFrame";
-import { useMockAuth } from "../../components/MockAuthProvider";
+import { useMockAuth } from "../../hooks/useMockAuth";
 import { getMyApplicantDashboardRef } from "../../convex/api";
 import { getConvexClient } from "../../convex/client";
 import { ApplicantTimeline } from "./ApplicantTimeline";

@@ -104,7 +104,7 @@ Frontend variables are baked in at build time:
 | `VITE_CONVEX_URL` | Convex deployment URL (`https://<name>.convex.cloud`) |
 | `VITE_CONVEX_SITE_URL` | Convex HTTP actions URL (`https://<name>.convex.site`) |
 | `VITE_LANDING_URL` | Marketing site to link back to |
-| `VITE_USE_MOCK_API` | `true` only in local/test builds; never in production |
+| `VITE_USE_MOCK_API` | `true` for local dev and CI browser tests; never on live production deploys |
 
 Convex deployment variables:
 
@@ -119,13 +119,13 @@ Convex deployment variables:
 
 ## Mock mode
 
-When `VITE_USE_MOCK_API=true` and the build is not production:
+When `VITE_USE_MOCK_API=true`:
 
 - Convex Auth is bypassed for UI development via `MockAuthProvider`.
 - Mock OTP code: `042681`
 - Registration and contact submissions succeed locally without SMTP or authenticated Convex mutations.
 
-Production builds ignore mock mode even if the variable is set.
+CI intentionally bakes this into the production bundle for Playwright CSP tests. Live Vercel deploys must leave it unset or `false`.
 
 ## Legacy anonymous registrations
 

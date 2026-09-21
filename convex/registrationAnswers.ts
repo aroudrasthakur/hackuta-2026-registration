@@ -1,0 +1,32 @@
+import { v } from "convex/values";
+
+export const registrationAnswers = v.object({
+  firstName: v.optional(v.string()),
+  lastName: v.optional(v.string()),
+  phone: v.optional(v.string()),
+  age: v.optional(v.number()),
+  school: v.optional(v.string()),
+  levelOfStudy: v.optional(v.string()),
+  major: v.optional(v.string()),
+  graduationYear: v.optional(v.number()),
+  gender: v.optional(v.string()),
+  raceEthnicity: v.optional(v.array(v.string())),
+  dietaryRestrictions: v.optional(v.array(v.string())),
+  otherDietary: v.optional(v.string()),
+  tshirtSize: v.optional(v.string()),
+  firstHackathon: v.optional(v.boolean()),
+  hearAbout: v.optional(v.string()),
+  // Retained for registrations created before PDF uploads were introduced.
+  resumeUrl: v.optional(v.string()),
+  resumeStorageId: v.optional(v.id("_storage")),
+  linkedin: v.optional(v.string()),
+  github: v.optional(v.string()),
+  portfolio: v.optional(v.string()),
+  accessibilityNeeds: v.optional(v.string()),
+  emergencyContactName: v.optional(v.string()),
+  emergencyContactPhone: v.optional(v.string()),
+  codeOfConductAgreed: v.optional(v.boolean()),
+  mlhDataSharingConsent: v.optional(v.boolean()),
+  mlhCommunicationsConsent: v.optional(v.boolean()),
+  email: v.optional(v.string()),
+});

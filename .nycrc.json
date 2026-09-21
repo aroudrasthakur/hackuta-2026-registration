@@ -1,0 +1,22 @@
+{
+  "check-coverage": true,
+  "lines": 80,
+  "functions": 80,
+  "branches": 80,
+  "statements": 80,
+  "include": [
+    "src/**/*.{ts,tsx}",
+    "shared/**/*.ts",
+    "convex/**/*.ts",
+    "security/**/*.ts"
+  ],
+  "exclude": [
+    "src/main.tsx",
+    "**/*.test.*",
+    "**/*.spec.*",
+    "convex/_generated/**",
+    "convex/crons.ts"
+  ],
+  "reporter": ["text-summary", "text"],
+  "temp-dir": ".nyc_output"
+}

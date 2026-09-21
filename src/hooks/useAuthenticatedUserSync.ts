@@ -9,28 +9,24 @@ import { useSessionAuth } from "./useSessionAuth";
 export function useAuthenticatedUserSync() {
   const { isAuthenticated, isLoading } = useSessionAuth();
   const syncUser = useMutation(syncUserRef);
-  const [ready, setReady] = useState(() => !getConvexClient() || isMockApiEnabled());
+  const skipSync = isMockApiEnabled() || !getConvexClient();
+  const [synced, setSynced] = useState(false);
 
   useEffect(() => {
-    if (isMockApiEnabled() || !getConvexClient()) {
-      setReady(true);
-      return;
-    }
-
-    if (isLoading || !isAuthenticated) {
-      setReady(false);
-      return;
-    }
+    if (skipSync || isLoading || !isAuthenticated) return;
 
     let cancelled = false;
     void syncUser({}).finally(() => {
-      if (!cancelled) setReady(true);
+      if (!cancelled) setSynced(true);
     });
 
     return () => {
       cancelled = true;
+      setSynced(false);
     };
-  }, [isAuthenticated, isLoading, syncUser]);
+  }, [skipSync, isAuthenticated, isLoading, syncUser]);
 
-  return ready;
+  if (skipSync) return true;
+  if (isLoading || !isAuthenticated) return false;
+  return synced;
 }

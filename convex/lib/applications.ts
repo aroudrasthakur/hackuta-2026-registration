@@ -1,9 +1,20 @@
-import type { DataModelFromSchemaDefinition, GenericMutationCtx, GenericQueryCtx } from "convex/server";
-import type { Doc, Id } from "../_generated/dataModel";
+import type {
+  DataModelFromSchemaDefinition,
+  DocumentByName,
+  GenericMutationCtx,
+  GenericQueryCtx,
+  TableNamesInDataModel,
+} from "convex/server";
+import type { GenericId } from "convex/values";
 import type schema from "../schema";
 
-type QueryCtx = GenericQueryCtx<DataModelFromSchemaDefinition<typeof schema>>;
-type MutationCtx = GenericMutationCtx<DataModelFromSchemaDefinition<typeof schema>>;
+type DataModel = DataModelFromSchemaDefinition<typeof schema>;
+type TableName = TableNamesInDataModel<DataModel>;
+type Doc<T extends TableName> = DocumentByName<DataModel, T>;
+type Id<T extends TableName | "_storage"> = GenericId<T>;
+
+type QueryCtx = GenericQueryCtx<DataModel>;
+type MutationCtx = GenericMutationCtx<DataModel>;
 
 export function getApplication(user: Doc<"users">, hackathonId: string) {
   if (user.applications?.hackathonId === hackathonId) {

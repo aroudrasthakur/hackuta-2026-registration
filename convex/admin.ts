@@ -1,10 +1,24 @@
+import type { DataModelFromSchemaDefinition, GenericMutationCtx } from "convex/server";
 import { internalMutation } from "./_generated/server";
-import type { MutationCtx } from "./_generated/server";
-import type { TableNames } from "./_generated/dataModel";
+import type schema from "./schema";
+
+type MutationCtx = GenericMutationCtx<DataModelFromSchemaDefinition<typeof schema>>;
+
+type ResettableTable =
+  | "resumeUploadSessions"
+  | "rateLimits"
+  | "hackathons"
+  | "authRefreshTokens"
+  | "authVerificationCodes"
+  | "authVerifiers"
+  | "authSessions"
+  | "authAccounts"
+  | "authRateLimits"
+  | "users";
 
 const CLEANUP_PAGE_SIZE = 100;
 
-async function deleteAllFromTable(ctx: MutationCtx, table: TableNames) {
+async function deleteAllFromTable(ctx: MutationCtx, table: ResettableTable) {
   let deleted = CLEANUP_PAGE_SIZE;
   while (deleted === CLEANUP_PAGE_SIZE) {
     const rows = await ctx.db.query(table).take(CLEANUP_PAGE_SIZE);

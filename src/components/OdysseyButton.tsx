@@ -8,6 +8,7 @@ type OdysseyButtonProps = {
   newTab?: boolean;
   type?: ButtonHTMLAttributes<HTMLButtonElement>["type"];
   className?: string;
+  onClick?: ButtonHTMLAttributes<HTMLButtonElement>["onClick"];
 };
 
 export function OdysseyButton({
@@ -17,6 +18,7 @@ export function OdysseyButton({
   newTab = false,
   type = "button",
   className,
+  onClick,
 }: OdysseyButtonProps) {
   const classes = ["odyssey-btn", className].filter(Boolean).join(" ");
 
@@ -46,6 +48,7 @@ export function OdysseyButton({
       className={classes}
       disabled={disabled}
       aria-disabled={disabled || undefined}
+      onClick={onClick}
     >
       {children}
     </button>

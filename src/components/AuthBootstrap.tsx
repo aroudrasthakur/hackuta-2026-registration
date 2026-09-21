@@ -1,15 +1,41 @@
-import { useEffect, type ReactNode } from "react";
-import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useSessionAuth } from "../hooks/useSessionAuth";
 
+function AuthLoadingScreen() {
+  return (
+    <main className="register-page flex min-h-screen items-center justify-center bg-(--clay)">
+      <p className="text-sm text-(--ocean)" role="status" aria-live="polite">
+        Loading…
+      </p>
+    </main>
+  );
+}
+
+/** Every full page load starts signed out; sessions do not carry over from prior visits. */
 export function AuthBootstrap({ children }: { children: ReactNode }) {
-  const { isLoading, isAuthenticated } = useConvexAuth();
-  const { signIn } = useAuthActions();
+  const { isLoading, isAuthenticated, signOut } = useSessionAuth();
+  const [sessionReady, setSessionReady] = useState(false);
+  const bootstrappingRef = useRef(false);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      void signIn("anonymous");
-    }
-  }, [isAuthenticated, isLoading, signIn]);
+    if (isLoading || sessionReady || bootstrappingRef.current) return;
+
+    bootstrappingRef.current = true;
+    void (async () => {
+      try {
+        if (isAuthenticated) {
+          await signOut();
+        }
+      } finally {
+        setSessionReady(true);
+        bootstrappingRef.current = false;
+      }
+    })();
+  }, [isAuthenticated, isLoading, sessionReady, signOut]);
+
+  if (isLoading || !sessionReady) {
+    return <AuthLoadingScreen />;
+  }
 
   return children;
 }

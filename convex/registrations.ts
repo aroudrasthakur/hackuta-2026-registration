@@ -6,7 +6,8 @@ import type schema from "./schema";
 import { validateRegistrationPayload } from "../shared/registration/validation";
 import type { RegistrationPayload } from "../shared/registration/types";
 import { MAX_RESUME_BYTES } from "../shared/registration/resume";
-import { resolveAuthenticatedUserId } from "./authenticatedUser";
+import { resolveAuthenticatedUser, resolveAuthenticatedUserId } from "./authenticatedUser";
+import { normalizeEmail } from "./lib/normalizeEmail";
 import { ensureHackathon } from "./hackathons";
 
 type MutationCtx = GenericMutationCtx<DataModelFromSchemaDefinition<typeof schema>>;
@@ -19,6 +20,9 @@ const CLEANUP_PAGE_SIZE = 100;
 
 const cleanupExpiredResumeUploadsRef = makeFunctionReference<"mutation">(
   "registrations:cleanupExpiredResumeUploads",
+);
+const sendApplicationConfirmationEmailRef = makeFunctionReference<"action">(
+  "email/sendApplicationConfirmationEmail:sendApplicationConfirmationEmail",
 );
 
 export const reserveResumeUpload = internalMutation({
@@ -88,9 +92,15 @@ async function upsertRegistration(
   status: "draft" | "submitted",
   resumeUploadToken?: string,
 ) {
-  const userId = await resolveAuthenticatedUserId(ctx, {
+  const user = await resolveAuthenticatedUser(ctx, {
     displayName: `${data.firstName} ${data.lastName}`,
   });
+  const userId = user._id;
+  const verifiedEmail = normalizeEmail(user.email);
+  if (!verifiedEmail) {
+    throw new Error("Authentication required.");
+  }
+
   const { hackathonId, resumeStorageId: rawStorageId, ...fields } = data;
   await ensureHackathon(ctx, hackathonId);
 
@@ -98,6 +108,10 @@ async function upsertRegistration(
     .query("registrations")
     .withIndex("by_user_hackathon", (q) => q.eq("userId", userId).eq("hackathonId", hackathonId))
     .first();
+
+  if (status === "submitted" && existing?.status === "submitted") {
+    throw new Error("You have already submitted an application.");
+  }
   const resumeStorageId = rawStorageId
     ? ctx.db.system.normalizeId("_storage", rawStorageId)
     : undefined;
@@ -150,33 +164,51 @@ async function upsertRegistration(
     }
   }
 
-  const answers = { ...fields, resumeStorageId: resumeStorageId ?? undefined };
+  const answers = {
+    ...fields,
+    email: verifiedEmail,
+    resumeStorageId: resumeStorageId ?? undefined,
+  };
+  const submittedAt = status === "submitted" ? Date.now() : undefined;
 
+  let registrationId;
   if (existing) {
     const previousResume = existing.answers.resumeStorageId;
     await ctx.db.patch(existing._id, {
       answers,
       status,
-      submittedAt: status === "submitted" ? Date.now() : undefined,
+      submittedAt,
       updatedAt: Date.now(),
     });
     if (previousResume && previousResume !== resumeStorageId) {
       await ctx.storage.delete(previousResume);
     }
-    return { registrationId: existing._id, isNew: false, ok: true as const };
+    registrationId = existing._id;
+  } else {
+    registrationId = await ctx.db.insert("registrations", {
+      userId,
+      hackathonId,
+      status,
+      eligibilityStatus: "unreviewed",
+      answers,
+      submittedAt,
+      updatedAt: Date.now(),
+    });
   }
 
-  const registrationId = await ctx.db.insert("registrations", {
-    userId,
-    hackathonId,
-    status,
-    eligibilityStatus: "unreviewed",
-    answers,
-    submittedAt: status === "submitted" ? Date.now() : undefined,
-    updatedAt: Date.now(),
-  });
+  if (status === "submitted" && submittedAt !== undefined) {
+    await ctx.scheduler.runAfter(0, sendApplicationConfirmationEmailRef, {
+      email: verifiedEmail,
+      firstName: data.firstName,
+      submittedAt,
+    });
+  }
 
-  return { registrationId, isNew: true, ok: true as const };
+  return {
+    registrationId,
+    isNew: !existing,
+    ok: true as const,
+  };
 }
 
 function parseRegistrationData(data: unknown): RegistrationPayload {
@@ -265,11 +297,10 @@ export const cleanupExpiredResumeUploads = internalMutation({
 
 export const syncUser = mutation({
   args: {
-    email: v.optional(v.string()),
     displayName: v.optional(v.string()),
   },
-  handler: async (ctx, { email, displayName }) => {
-    const userId = await resolveAuthenticatedUserId(ctx, { email, displayName });
+  handler: async (ctx, { displayName }) => {
+    const userId = await resolveAuthenticatedUserId(ctx, { displayName });
     return { userId, ok: true as const };
   },
 });

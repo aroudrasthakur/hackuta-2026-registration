@@ -2,31 +2,71 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Navigate, Routes, Route } from 'react-router-dom'
 import { ConvexAuthProvider } from '@convex-dev/auth/react'
+import { ConvexProvider } from 'convex/react'
 import { AuthBootstrap } from './components/AuthBootstrap'
+import { MockAuthProvider, isMockApiEnabled } from './components/MockAuthProvider'
+import { SessionAuthProvider } from './hooks/useSessionAuth'
+import { ProtectedRoute } from './components/ProtectedRoute'
 import { convexClient } from './convex/client'
+import ContactPage from './pages/Contact/ContactPage'
+import HomeRedirect from './pages/HomeRedirect'
+import ProfilePage from './pages/Profile/ProfilePage'
 import RegisterPage from './pages/Register/RegisterPage'
+import SignInPage from './pages/SignIn/SignInPage'
 import './styles/index.css'
 
 const root = document.getElementById('root')
 if (!root) throw new Error('Missing #root element')
 
+const useMockApi = isMockApiEnabled()
+
 const app = (
   <React.StrictMode>
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<RegisterPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <AuthBootstrap>
+        <Routes>
+          <Route path="/" element={<HomeRedirect />} />
+          <Route path="/sign-in" element={<SignInPage />} />
+          <Route
+            path="/register"
+            element={
+              <ProtectedRoute requireAuth requireNoSubmittedRegistration>
+                <RegisterPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute requireAuth>
+                <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthBootstrap>
     </BrowserRouter>
   </React.StrictMode>
 )
 
-const useMockApi = import.meta.env.VITE_USE_MOCK_API === 'true'
-const content = convexClient && !useMockApi ? (
-  <ConvexAuthProvider client={convexClient}>
-    <AuthBootstrap>{app}</AuthBootstrap>
+const withSession = <SessionAuthProvider>{app}</SessionAuthProvider>
+
+const content = useMockApi ? (
+  <MockAuthProvider>
+    {convexClient ? (
+      <ConvexProvider client={convexClient}>{withSession}</ConvexProvider>
+    ) : (
+      withSession
+    )}
+  </MockAuthProvider>
+) : convexClient ? (
+  <ConvexAuthProvider client={convexClient} storage={window.sessionStorage}>
+    {withSession}
   </ConvexAuthProvider>
-) : app
+) : (
+  withSession
+)
 
 ReactDOM.createRoot(root).render(content)

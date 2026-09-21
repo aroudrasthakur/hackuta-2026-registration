@@ -71,9 +71,10 @@ async function authTest(identity: {
   subject?: string;
   email?: string;
   name?: string;
-} = { tokenIdentifier: "browser-one" }) {
+} = { tokenIdentifier: "email|applicant@example.com", email: "applicant@example.com" }) {
   const t = createTest().withIdentity(identity) as unknown as ConvexTestClient;
   await seedHackathon(t);
+  await t.mutation("registrations:syncUser", {});
   return t;
 }
 
@@ -119,10 +120,9 @@ describe("convex registrations", () => {
     expect(first.ok).toBe(true);
     expect(first.isNew).toBe(true);
 
-    const second = await t.mutation("registrations:register", {
+    await expect(t.mutation("registrations:register", {
       data: validRegistrationData,
-    });
-    expect(second.isNew).toBe(false);
+    })).rejects.toThrow("already submitted");
 
     const draft = await t.mutation("registrations:saveDraft", {
       data: { ...validRegistrationData, major: "Engineering" },
@@ -199,8 +199,10 @@ describe("convex registrations", () => {
 
   it("auto-seeds hackuta-2026 on first registration", async () => {
     const t = createTest().withIdentity({
-      tokenIdentifier: "browser-one",
+      tokenIdentifier: "email|applicant@example.com",
+      email: "applicant@example.com",
     }) as unknown as ConvexTestClient;
+    await t.mutation("registrations:syncUser", {});
 
     await expect(
       t.query("queries:getHackathonBySlug", { slug: "hackuta-2026" }),
@@ -221,21 +223,20 @@ describe("convex registrations", () => {
 
   it("reuses one user for repeated synchronization", async () => {
     const t = createTest().withIdentity({
-      tokenIdentifier: "browser-one",
+      tokenIdentifier: "email|sam@example.com",
+      email: "sam@example.com",
     }) as unknown as ConvexTestClient;
 
     const first = await t.mutation("registrations:syncUser", {
-      email: " Sam@Example.com ",
       displayName: "Sam Test",
     });
     const second = await t.mutation("registrations:syncUser", {
-      email: "sam@example.com",
       displayName: "Sam Updated",
     });
 
     expect(first.userId).toBe(second.userId);
     await expect(t.query("queries:getCurrentUser", {})).resolves.toMatchObject({
-      identityKey: "browser-one",
+      identityKey: "email|sam@example.com",
       email: "sam@example.com",
       displayName: "Sam Updated",
     });
@@ -247,18 +248,16 @@ describe("convex registrations", () => {
     const first = base.withIdentity({
       tokenIdentifier: "browser-one",
       subject,
-    }) as unknown as ConvexTestClient;
-    const firstSync = await first.mutation("registrations:syncUser", {
       email: "sam@example.com",
-    });
+    }) as unknown as ConvexTestClient;
+    const firstSync = await first.mutation("registrations:syncUser", {});
 
     const second = base.withIdentity({
       tokenIdentifier: "browser-two",
       subject,
-    }) as unknown as ConvexTestClient;
-    const secondSync = await second.mutation("registrations:syncUser", {
       email: "sam@example.com",
-    });
+    }) as unknown as ConvexTestClient;
+    const secondSync = await second.mutation("registrations:syncUser", {});
 
     expect(firstSync.userId).toBe(secondSync.userId);
     await expect(second.query("queries:getCurrentUser", {})).resolves.toMatchObject({
@@ -272,20 +271,18 @@ describe("convex registrations", () => {
   it("rejects duplicate normalized emails", async () => {
     const base = createTest();
     const t = base.withIdentity({
-      tokenIdentifier: "browser-one",
+      tokenIdentifier: "email|sam@example.com",
+      email: "sam@example.com",
     }) as unknown as ConvexTestClient;
 
-    await t.mutation("registrations:syncUser", {
-      email: "sam@example.com",
-    });
+    await t.mutation("registrations:syncUser", {});
 
     const duplicateUser = base.withIdentity({
-      tokenIdentifier: "browser-two",
+      tokenIdentifier: "email|other@example.com",
+      email: "sam@example.com",
     }) as unknown as ConvexTestClient;
     await expect(
-      duplicateUser.mutation("registrations:syncUser", {
-        email: " SAM@EXAMPLE.COM ",
-      }),
+      duplicateUser.mutation("registrations:syncUser", {}),
     ).rejects.toThrow("already associated");
   });
 
@@ -432,20 +429,30 @@ describe("resume HTTP validation and lifecycle", () => {
     await t.mutation("registrations:register", { data, resumeUploadToken: upload.token });
     await t.mutation("registrations:deleteResumeUpload", { uploadToken: upload.token });
     expect(await t.run((ctx) => ctx.db.system.get("_storage", upload.storageId))).not.toBeNull();
-    await expect(t.mutation("registrations:register", { data })).resolves.toMatchObject({ ok: true, isNew: false });
+    await expect(t.mutation("registrations:register", { data })).rejects.toThrow(
+      "already submitted",
+    );
   });
 
   it("does not let another application claim a submitted resume", async () => {
     const base = createTest();
-    const owner = base.withIdentity({ tokenIdentifier: "resume-owner" }) as unknown as ConvexTestClient;
+    const owner = base.withIdentity({
+      tokenIdentifier: "email|owner@example.com",
+      email: "owner@example.com",
+    }) as unknown as ConvexTestClient;
     await seedHackathon(owner);
+    await owner.mutation("registrations:syncUser", {});
     const upload = await verifiedUpload(owner);
     await owner.mutation("registrations:register", {
       data: { ...validRegistrationData, resumeStorageId: upload.storageId },
       resumeUploadToken: upload.token,
     });
 
-    const otherApplicant = base.withIdentity({ tokenIdentifier: "other-applicant" }) as unknown as ConvexTestClient;
+    const otherApplicant = base.withIdentity({
+      tokenIdentifier: "email|other@example.com",
+      email: "other@example.com",
+    }) as unknown as ConvexTestClient;
+    await otherApplicant.mutation("registrations:syncUser", {});
     await expect(otherApplicant.mutation("registrations:register", {
       data: { ...validRegistrationData, firstName: "Other", resumeStorageId: upload.storageId },
     })).rejects.toThrow("already attached");
@@ -475,12 +482,18 @@ describe("resume HTTP validation and lifecycle", () => {
     const t = await authTest();
     const first = await verifiedUpload(t);
     const second = await verifiedUpload(t);
-    for (const upload of [first, second]) {
-      await t.mutation("registrations:register", {
-        data: { ...validRegistrationData, resumeStorageId: upload.storageId },
-        resumeUploadToken: upload.token,
-      });
-    }
+    await t.mutation("registrations:saveDraft", {
+      data: { ...validRegistrationData, resumeStorageId: first.storageId },
+      resumeUploadToken: first.token,
+    });
+    await t.mutation("registrations:saveDraft", {
+      data: { ...validRegistrationData, resumeStorageId: second.storageId },
+      resumeUploadToken: second.token,
+    });
+    await t.mutation("registrations:register", {
+      data: { ...validRegistrationData, resumeStorageId: second.storageId },
+      resumeUploadToken: second.token,
+    });
     expect(await t.run((ctx) => ctx.db.system.get("_storage", first.storageId))).toBeNull();
     expect(await t.run((ctx) => ctx.db.system.get("_storage", second.storageId))).not.toBeNull();
   });
@@ -581,8 +594,10 @@ describe("convex queries", () => {
 
   it("allows owned registration reads and rejects missing or foreign records", async () => {
     const base = createTest();
+    vi.stubEnv("REGISTRATION_ADMIN_IDENTITY_KEYS", "email|sam@example.com");
     const t = base.withIdentity({
-      tokenIdentifier: "provider-user",
+      tokenIdentifier: "email|sam@example.com",
+      email: "sam@example.com",
     }) as unknown as ConvexTestClient;
     await seedHackathon(t);
     const user = await t.mutation("registrations:syncUser", {});
@@ -595,7 +610,8 @@ describe("convex queries", () => {
     ).resolves.toMatchObject({ userId: user.userId });
 
     const foreignUser = base.withIdentity({
-      tokenIdentifier: "foreign-user",
+      tokenIdentifier: "email|foreign@example.com",
+      email: "foreign@example.com",
     }) as unknown as ConvexTestClient;
     await foreignUser.mutation("registrations:syncUser", {});
     await expect(
@@ -609,5 +625,104 @@ describe("convex queries", () => {
     await expect(
       foreignUser.query("queries:getRegistrationsByHackathon", { hackathonId: "hackuta-2026" }),
     ).rejects.toThrow("Not authorized to access hackathon registrations");
+  });
+});
+
+describe("convex applicant auth flows", () => {
+  it("returns routing state for authenticated users", async () => {
+    const t = await authTest();
+    await expect(t.query("applicant:getApplicantRoutingState", {})).resolves.toMatchObject({
+      authenticated: true,
+      verifiedEmail: "applicant@example.com",
+      hasRegistration: false,
+    });
+  });
+
+  it("claims a single legacy anonymous registration after verified sign-in", async () => {
+    const base = createTest();
+    await seedHackathon(base as unknown as ConvexTestClient);
+
+    const anonymousUserId = await base.run(async (ctx) => {
+      return ctx.db.insert("users", {
+        isAnonymous: true,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    });
+
+    await base.run(async (ctx) => {
+      await ctx.db.insert("registrations", {
+        userId: anonymousUserId,
+        hackathonId: "hackuta-2026",
+        status: "submitted",
+        eligibilityStatus: "unreviewed",
+        answers: {
+          firstName: validRegistrationData.firstName,
+          lastName: validRegistrationData.lastName,
+          email: "legacy@example.com",
+        },
+        submittedAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    });
+
+    const t = base.withIdentity({
+      tokenIdentifier: "email|legacy@example.com",
+      email: "legacy@example.com",
+    }) as unknown as ConvexTestClient;
+
+    await expect(t.mutation("applicant:claimLegacyRegistrationIfEligible", {})).resolves.toMatchObject({
+      claimed: true,
+    });
+
+    await expect(t.query("applicant:getApplicantRoutingState", {})).resolves.toMatchObject({
+      hasRegistration: true,
+      registrationStatus: "submitted",
+    });
+  });
+
+  it("does not claim ambiguous legacy registrations", async () => {
+    const base = createTest();
+    await seedHackathon(base as unknown as ConvexTestClient);
+
+    for (let index = 0; index < 2; index += 1) {
+      const anonymousUserId = await base.run(async (ctx) => ctx.db.insert("users", {
+        isAnonymous: true,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }));
+      await base.run(async (ctx) => {
+        await ctx.db.insert("registrations", {
+          userId: anonymousUserId,
+          hackathonId: "hackuta-2026",
+          status: "submitted",
+          eligibilityStatus: "unreviewed",
+          answers: {
+            firstName: validRegistrationData.firstName,
+            lastName: validRegistrationData.lastName,
+            email: "legacy@example.com",
+          },
+          submittedAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+    }
+
+    const t = base.withIdentity({
+      tokenIdentifier: "email|legacy@example.com",
+      email: "legacy@example.com",
+    }) as unknown as ConvexTestClient;
+
+    await expect(t.mutation("applicant:claimLegacyRegistrationIfEligible", {})).resolves.toMatchObject({
+      claimed: false,
+      reason: "ambiguous",
+    });
+  });
+
+  it("stores the verified email on submitted registrations", async () => {
+    const t = await authTest();
+    await t.mutation("registrations:register", { data: validRegistrationData });
+    const registration = await t.run((ctx) => ctx.db.query("registrations").first());
+    expect(registration?.answers.email).toBe("applicant@example.com");
   });
 });

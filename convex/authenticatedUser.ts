@@ -1,14 +1,10 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import type { DataModelFromSchemaDefinition, GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type schema from "./schema";
+import { normalizeEmail } from "./lib/normalizeEmail";
 
 type QueryCtx = GenericQueryCtx<DataModelFromSchemaDefinition<typeof schema>>;
 type MutationCtx = GenericMutationCtx<DataModelFromSchemaDefinition<typeof schema>>;
-
-function normalizeEmail(email: string | undefined) {
-  const normalized = email?.trim().toLowerCase();
-  return normalized || undefined;
-}
 
 async function findLegacyUser(
   ctx: QueryCtx | MutationCtx,
@@ -60,8 +56,8 @@ async function upsertLegacyUser(
     await ctx.db.patch(existing._id, {
       identityKey: normalizedIdentityKey,
       authSubject: normalizedAuthSubject ?? existing.authSubject,
-      email: normalizedEmail,
-      displayName: displayName?.trim() || undefined,
+      email: normalizedEmail ?? existing.email,
+      displayName: displayName?.trim() || existing.displayName || undefined,
       updatedAt: now,
     });
     return existing._id;
@@ -85,7 +81,8 @@ async function patchAuthenticatedUser(
   displayName: string | undefined,
   authSubject: string | undefined,
 ) {
-  const normalizedEmail = normalizeEmail(email);
+  const existing = await ctx.db.get(userId);
+  const normalizedEmail = normalizeEmail(email) ?? existing?.email;
   if (normalizedEmail) {
     const emailOwner = await ctx.db
       .query("users")
@@ -99,23 +96,23 @@ async function patchAuthenticatedUser(
 
   await ctx.db.patch(userId, {
     identityKey: identityKey.trim(),
-    authSubject: authSubject?.trim() || undefined,
+    authSubject: authSubject?.trim() || existing?.authSubject || undefined,
     email: normalizedEmail,
-    displayName: displayName?.trim() || undefined,
+    displayName: displayName?.trim() || existing?.displayName || undefined,
     updatedAt: Date.now(),
   });
 }
 
 export async function resolveAuthenticatedUser(
   ctx: QueryCtx | MutationCtx,
-  profile: { email?: string; displayName?: string } = {},
+  profile: { displayName?: string } = {},
 ) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) {
     throw new Error("Authentication required.");
   }
 
-  const email = identity.email ?? profile.email;
+  const verifiedEmail = normalizeEmail(identity.email);
   const displayName = identity.name ?? profile.displayName;
   const authUserId = await getAuthUserId(ctx);
   const authUser = authUserId ? await ctx.db.get(authUserId) : null;
@@ -126,7 +123,7 @@ export async function resolveAuthenticatedUser(
         ctx,
         authUserId!,
         identity.tokenIdentifier,
-        email,
+        verifiedEmail,
         displayName,
         identity.subject,
       );
@@ -140,7 +137,7 @@ export async function resolveAuthenticatedUser(
     const legacyUserId = await upsertLegacyUser(
       ctx,
       identity.tokenIdentifier,
-      email,
+      verifiedEmail,
       displayName,
       identity.subject,
     );
@@ -156,7 +153,7 @@ export async function resolveAuthenticatedUser(
 
 export async function resolveAuthenticatedUserId(
   ctx: MutationCtx,
-  profile: { email?: string; displayName?: string } = {},
+  profile: { displayName?: string } = {},
 ) {
   const user = await resolveAuthenticatedUser(ctx, profile);
   return user._id;

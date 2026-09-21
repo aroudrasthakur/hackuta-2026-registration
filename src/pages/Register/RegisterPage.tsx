@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { Logo } from "../../components/art/Logo";
 import { Ship } from "../../components/art/Ship";
 import { LANDING_URL } from "../../constants/site";
@@ -8,6 +9,7 @@ import { SuccessStep } from "./SuccessStep";
 export type RegisterStep = "application" | "success";
 
 export default function RegisterPage() {
+  const navigate = useNavigate();
   const [step, setStep] = useState<RegisterStep>("application");
 
   return (
@@ -97,7 +99,12 @@ export default function RegisterPage() {
 
             <div className="relative z-10">
               {step === "application" ? (
-                <ApplicationForm onSubmitted={() => setStep("success")} />
+                <ApplicationForm
+                  onSubmitted={() => {
+                    setStep("success");
+                    window.setTimeout(() => navigate("/profile", { replace: true }), 1500);
+                  }}
+                />
               ) : (
                 <SuccessStep />
               )}
@@ -107,13 +114,13 @@ export default function RegisterPage() {
 
         {/* Footer info */}
         <p className="mt-8 text-center text-xs text-(--mist)">
-          Questions? Contact us at{" "}
-          <a
-            href="mailto:hello@hackuta.org"
+          Questions?{" "}
+          <Link
+            to="/contact"
             className="text-(--ocean) underline decoration-1 underline-offset-2 transition-colors hover:text-(--ink)"
           >
-            hello@hackuta.org
-          </a>
+            Contact us
+          </Link>
         </p>
       </div>
     </main>

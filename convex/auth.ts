@@ -1,6 +1,44 @@
-import { Anonymous } from "@convex-dev/auth/providers/Anonymous";
+import { Email } from "@convex-dev/auth/providers/Email";
 import { convexAuth } from "@convex-dev/auth/server";
+import type { GenericActionCtx } from "convex/server";
+import { makeFunctionReference } from "convex/server";
+
+const sendOtpEmailRef = makeFunctionReference<"action">("email/sendOtpEmail:sendOtpEmail");
+const assertOtpSendAllowedRef = makeFunctionReference<"mutation">("rateLimits:assertOtpSendAllowed");
+const recordOtpSendRef = makeFunctionReference<"mutation">("rateLimits:recordOtpSend");
+
+const OTP_MAX_AGE_SECONDS = 10 * 60;
+
+function generateSixDigitOtp(): string {
+  const bytes = new Uint32Array(1);
+  crypto.getRandomValues(bytes);
+  return (bytes[0]! % 1_000_000).toString().padStart(6, "0");
+}
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
-  providers: [Anonymous()],
+  providers: [
+    Email({
+      id: "email",
+      maxAge: OTP_MAX_AGE_SECONDS,
+      generateVerificationToken: async () => generateSixDigitOtp(),
+      // Convex Auth passes the action ctx as a second runtime argument.
+      sendVerificationRequest: (async (
+        params: { identifier: string; token: string; expires: Date },
+        ctx: GenericActionCtx<Record<string, never>>,
+      ) => {
+        const { identifier, token, expires } = params;
+        await ctx.runMutation(assertOtpSendAllowedRef, { email: identifier });
+        await ctx.runAction(sendOtpEmailRef, {
+          email: identifier,
+          code: token,
+          expiresAt: expires.getTime(),
+        });
+        await ctx.runMutation(recordOtpSendRef, { email: identifier });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      }) as any,
+    }),
+  ],
+  signIn: {
+    maxFailedAttempsPerHour: 5,
+  },
 });

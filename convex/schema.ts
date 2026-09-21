@@ -60,6 +60,16 @@ export default defineSchema({
     .index('by_resume', ['answers.resumeStorageId'])
     .index('by_hackathon_status', ['hackathonId', 'status']),
 
+  otpSendAttempts: defineTable({
+    email: v.string(),
+    sentAt: v.number(),
+  }).index('by_email', ['email']),
+
+  contactFormRequests: defineTable({
+    clientKey: v.string(),
+    createdAt: v.number(),
+  }).index('by_client_createdAt', ['clientKey', 'createdAt']),
+
   resumeUploadRequests: defineTable({
     userKey: v.string(),
     createdAt: v.number(),

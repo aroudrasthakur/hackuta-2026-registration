@@ -5,8 +5,10 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import { useAuthToken } from "@convex-dev/auth/react";
+import { useSessionAuth } from "../../hooks/useSessionAuth";
 import { OdysseyButton } from "../../components/OdysseyButton";
+import { useApplicantRouting } from "../../hooks/useApplicantRouting";
+import { inputClass, labelClass, legendClass } from "./components/formFieldStyles";
 import {
   DIETARY_OPTIONS,
   FIELD_LIMITS,
@@ -26,9 +28,6 @@ import { ResumeUpload } from "./components/ResumeUpload";
 import {
   fieldClass,
   fieldsetErrorClass,
-  inputClass,
-  labelClass,
-  legendClass,
 } from "./components/formFieldStyles";
 import {
   discardResumeUpload,
@@ -56,11 +55,8 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const convexAuthToken = useAuthToken();
-  const authToken =
-    import.meta.env.VITE_USE_MOCK_API === "true"
-      ? "test-token"
-      : convexAuthToken;
+  const { isAuthenticated } = useSessionAuth();
+  const routing = useApplicantRouting();
   const [resumeUpload, setResumeUpload] = useState<{
     fileKey: string;
     session: ResumeUploadSession;
@@ -110,6 +106,10 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (submitting) return;
+    if (!isAuthenticated && !routing.isAuthenticated) {
+      setSubmitError("Please sign in to submit your application.");
+      return;
+    }
 
     setSubmitError(null);
 
@@ -139,7 +139,7 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
         await discardPendingResume();
       }
 
-      await submitRegistration(validation.payload, authToken, session);
+      await submitRegistration(validation.payload, session);
       setResumeUpload(null);
       onSubmitted();
     } catch (err) {
@@ -152,6 +152,15 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
 
   return (
     <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-8">
+      {routing.verifiedEmail ? (
+        <div className="rounded-lg border-2 border-(--sand) bg-white px-4 py-3">
+          <p className={legendClass}>Verified email</p>
+          <p className={`${inputClass} mt-1 border-0 bg-transparent px-0 py-0 text-(--ink)`}>
+            {routing.verifiedEmail}
+          </p>
+        </div>
+      ) : null}
+
       {/* Header */}
       <div className="border-b-2 border-(--sand) pb-6">
         <h2 className="font-(family-name:--font-display) text-2xl text-(--ink)">

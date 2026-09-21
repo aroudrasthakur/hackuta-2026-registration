@@ -5,6 +5,7 @@ import { ConvexAuthProvider } from '@convex-dev/auth/react'
 import { AuthBootstrap } from './components/AuthBootstrap'
 import { convexClient } from './convex/client'
 import RegisterPage from './pages/Register/RegisterPage'
+import ProfilePage from './pages/Profile/ProfilePage'
 import './styles/index.css'
 
 const root = document.getElementById('root')
@@ -16,6 +17,7 @@ const app = (
       <Routes>
         <Route path="/" element={<RegisterPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

@@ -49,6 +49,7 @@ export function SuccessStep() {
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row">
+        <OdysseyButton href="/profile">View application</OdysseyButton>
         <OdysseyButton href={LANDING_URL}>Back to home</OdysseyButton>
       </div>
 

@@ -7,6 +7,10 @@ import {
   OTP_SEND_MAX_PER_HOUR,
   CONTACT_FORM_MAX_PER_WINDOW,
 } from "../../convex/rateLimits";
+import {
+  CONTACT_FORM_BUCKET,
+  OTP_SEND_BUCKET,
+} from "../../convex/lib/rateLimitBuckets";
 
 const modules = import.meta.glob("../../convex/**/*.ts", { eager: false });
 
@@ -33,9 +37,10 @@ describe("rateLimits", () => {
     const test = convexTest(schema, modules);
     await test.run(async (ctx) => {
       await ctx.runMutation(recordOtpSend, { email: "test@example.com" });
-      const attempts = await ctx.db.query("otpSendAttempts").collect();
+      const attempts = await ctx.db.query("rateLimits").collect();
       expect(attempts).toHaveLength(1);
-      expect(attempts[0]?.email).toBe("test@example.com");
+      expect(attempts[0]?.bucket).toBe(OTP_SEND_BUCKET);
+      expect(attempts[0]?.key).toBe("test@example.com");
     });
   });
 
@@ -54,11 +59,11 @@ describe("rateLimits", () => {
     await test.run(async (ctx) => {
       const email = "expired@example.com";
       const now = Date.now();
-      
-      // Insert old attempt
-      await ctx.db.insert("otpSendAttempts", {
-        email,
-        sentAt: now - OTP_RESEND_COOLDOWN_MS - 1000,
+
+      await ctx.db.insert("rateLimits", {
+        bucket: OTP_SEND_BUCKET,
+        key: email,
+        createdAt: now - OTP_RESEND_COOLDOWN_MS - 1000,
       });
 
       await expect(
@@ -72,12 +77,12 @@ describe("rateLimits", () => {
     await test.run(async (ctx) => {
       const email = "ratelimited@example.com";
       const now = Date.now();
-      
-      // Insert max attempts within the window
+
       for (let i = 0; i < OTP_SEND_MAX_PER_HOUR; i++) {
-        await ctx.db.insert("otpSendAttempts", {
-          email,
-          sentAt: now - (i * 5 * 60 * 1000), // 5 minutes apart
+        await ctx.db.insert("rateLimits", {
+          bucket: OTP_SEND_BUCKET,
+          key: email,
+          createdAt: now - (i * 5 * 60 * 1000),
         });
       }
 
@@ -90,8 +95,6 @@ describe("rateLimits", () => {
   it("rejects invalid email for OTP", async () => {
     const test = convexTest(schema, modules);
     await test.run(async (ctx) => {
-      // normalizeEmail returns null for invalid emails
-      // The mutation should handle this
       try {
         await ctx.runMutation(assertOtpSendAllowed, { email: "" });
         throw new Error("Should have failed");
@@ -106,23 +109,23 @@ describe("rateLimits", () => {
     await test.run(async (ctx) => {
       const email = "cleanup@example.com";
       const now = Date.now();
-      
-      // Insert old attempt outside window
-      await ctx.db.insert("otpSendAttempts", {
-        email,
-        sentAt: now - 2 * 60 * 60 * 1000, // 2 hours ago
+
+      await ctx.db.insert("rateLimits", {
+        bucket: OTP_SEND_BUCKET,
+        key: email,
+        createdAt: now - 2 * 60 * 60 * 1000,
       });
 
       await ctx.runMutation(recordOtpSend, { email });
-      
+
       const attempts = await ctx.db
-        .query("otpSendAttempts")
-        .withIndex("by_email", (q) => q.eq("email", email))
+        .query("rateLimits")
+        .withIndex("by_bucket_createdAt", (q) => q.eq("bucket", OTP_SEND_BUCKET))
+        .filter((q) => q.eq(q.field("key"), email))
         .collect();
-      
-      // Only the new one should remain
+
       expect(attempts).toHaveLength(1);
-      expect(attempts[0]!.sentAt).toBeGreaterThan(now - 1000);
+      expect(attempts[0]!.createdAt).toBeGreaterThan(now - 1000);
     });
   });
 
@@ -139,9 +142,10 @@ describe("rateLimits", () => {
     const test = convexTest(schema, modules);
     await test.run(async (ctx) => {
       await ctx.runMutation(recordContactSubmission, { clientKey: "test-client" });
-      const submissions = await ctx.db.query("contactFormRequests").collect();
+      const submissions = await ctx.db.query("rateLimits").collect();
       expect(submissions).toHaveLength(1);
-      expect(submissions[0]?.clientKey).toBe("test-client");
+      expect(submissions[0]?.bucket).toBe(CONTACT_FORM_BUCKET);
+      expect(submissions[0]?.key).toBe("test-client");
     });
   });
 
@@ -150,11 +154,11 @@ describe("rateLimits", () => {
     await test.run(async (ctx) => {
       const clientKey = "spammer";
       const now = Date.now();
-      
-      // Insert max submissions
+
       for (let i = 0; i < CONTACT_FORM_MAX_PER_WINDOW; i++) {
-        await ctx.db.insert("contactFormRequests", {
-          clientKey,
+        await ctx.db.insert("rateLimits", {
+          bucket: CONTACT_FORM_BUCKET,
+          key: clientKey,
           createdAt: now - (i * 1000),
         });
       }
@@ -170,12 +174,12 @@ describe("rateLimits", () => {
     await test.run(async (ctx) => {
       const clientKey = "old-client";
       const now = Date.now();
-      
-      // Insert old submissions outside window
+
       for (let i = 0; i < CONTACT_FORM_MAX_PER_WINDOW; i++) {
-        await ctx.db.insert("contactFormRequests", {
-          clientKey,
-          createdAt: now - 15 * 60 * 1000, // 15 minutes ago (window is 10 minutes)
+        await ctx.db.insert("rateLimits", {
+          bucket: CONTACT_FORM_BUCKET,
+          key: clientKey,
+          createdAt: now - 15 * 60 * 1000,
         });
       }
 
@@ -189,8 +193,8 @@ describe("rateLimits", () => {
     const test = convexTest(schema, modules);
     await test.run(async (ctx) => {
       await ctx.runMutation(recordOtpSend, { email: "Test@Example.COM" });
-      const attempts = await ctx.db.query("otpSendAttempts").collect();
-      expect(attempts[0]?.email).toBe("test@example.com");
+      const attempts = await ctx.db.query("rateLimits").collect();
+      expect(attempts[0]?.key).toBe("test@example.com");
     });
   });
 });

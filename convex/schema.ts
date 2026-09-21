@@ -1,7 +1,7 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 import { authTables } from '@convex-dev/auth/server';
-import { registrationAnswers } from './registrationAnswers';
+import { application } from './applicationFields';
 
 export default defineSchema({
   ...authTables,
@@ -18,11 +18,14 @@ export default defineSchema({
     displayName: v.optional(v.string()),
     createdAt: v.optional(v.number()),
     updatedAt: v.optional(v.number()),
+    applications: v.optional(application),
   })
     .index('email', ['email'])
     .index('phone', ['phone'])
     .index('by_identity_key', ['identityKey'])
-    .index('by_auth_subject', ['authSubject']),
+    .index('by_auth_subject', ['authSubject'])
+    .index('by_resume', ['applications.resumeStorageId'])
+    .index('by_application_status', ['applications.hackathonId', 'applications.status']),
 
   hackathons: defineTable({
     slug: v.string(),
@@ -33,49 +36,12 @@ export default defineSchema({
     registrationClosesAt: v.number(),
   }).index('by_slug', ['slug']),
 
-  registrations: defineTable({
-    userId: v.id('users'),
-    hackathonId: v.string(),
-    status: v.union(
-      v.literal('draft'),
-      v.literal('submitted'),
-      v.literal('accepted'),
-      v.literal('waitlisted'),
-      v.literal('rejected'),
-      v.literal('withdrawn'),
-    ),
-    eligibilityStatus: v.union(
-      v.literal('unreviewed'),
-      v.literal('eligible'),
-      v.literal('ineligible'),
-    ),
-    answers: registrationAnswers,
-    submittedAt: v.optional(v.number()),
-    reviewedAt: v.optional(v.number()),
-    reviewedBy: v.optional(v.string()),
-    checkedInAt: v.optional(v.number()),
-    updatedAt: v.number(),
-  })
-    .index('by_user_hackathon', ['userId', 'hackathonId'])
-    .index('by_resume', ['answers.resumeStorageId'])
-    .index('by_hackathon_status', ['hackathonId', 'status']),
-
-  otpSendAttempts: defineTable({
-    email: v.string(),
-    sentAt: v.number(),
-  }).index('by_email', ['email']),
-
-  contactFormRequests: defineTable({
-    clientKey: v.string(),
-    createdAt: v.number(),
-  }).index('by_client_createdAt', ['clientKey', 'createdAt']),
-
-  resumeUploadRequests: defineTable({
-    userKey: v.string(),
+  rateLimits: defineTable({
+    bucket: v.string(),
+    key: v.string(),
     createdAt: v.number(),
   })
-    .index('by_user_createdAt', ['userKey', 'createdAt'])
-    .index('by_createdAt', ['createdAt']),
+    .index('by_bucket_createdAt', ['bucket', 'createdAt']),
 
   resumeUploadSessions: defineTable({
     token: v.string(),

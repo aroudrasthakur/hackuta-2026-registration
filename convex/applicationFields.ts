@@ -1,6 +1,31 @@
 import { v } from "convex/values";
 
-export const registrationAnswers = v.object({
+export const applicationStatus = v.union(
+  v.literal("draft"),
+  v.literal("submitted"),
+  v.literal("accepted"),
+  v.literal("waitlisted"),
+  v.literal("rejected"),
+  v.literal("withdrawn"),
+);
+
+export const eligibilityStatus = v.union(
+  v.literal("unreviewed"),
+  v.literal("eligible"),
+  v.literal("ineligible"),
+);
+
+export const application = v.object({
+  hackathonId: v.string(),
+  status: applicationStatus,
+  eligibilityStatus,
+  submittedAt: v.optional(v.number()),
+  reviewedAt: v.optional(v.number()),
+  reviewedBy: v.optional(v.string()),
+  checkedInAt: v.optional(v.number()),
+  updatedAt: v.number(),
+  resumeStorageId: v.optional(v.id("_storage")),
+  email: v.optional(v.string()),
   firstName: v.optional(v.string()),
   lastName: v.optional(v.string()),
   phone: v.optional(v.string()),
@@ -16,9 +41,6 @@ export const registrationAnswers = v.object({
   tshirtSize: v.optional(v.string()),
   firstHackathon: v.optional(v.boolean()),
   hearAbout: v.optional(v.string()),
-  // Retained for registrations created before PDF uploads were introduced.
-  resumeUrl: v.optional(v.string()),
-  resumeStorageId: v.optional(v.id("_storage")),
   linkedin: v.optional(v.string()),
   github: v.optional(v.string()),
   portfolio: v.optional(v.string()),
@@ -28,5 +50,4 @@ export const registrationAnswers = v.object({
   codeOfConductAgreed: v.optional(v.boolean()),
   mlhDataSharingConsent: v.optional(v.boolean()),
   mlhCommunicationsConsent: v.optional(v.boolean()),
-  email: v.optional(v.string()),
 });

@@ -9,6 +9,12 @@ import { MAX_RESUME_BYTES } from "../shared/registration/resume";
 import { resolveAuthenticatedUser, resolveAuthenticatedUserId } from "./authenticatedUser";
 import { normalizeEmail } from "./lib/normalizeEmail";
 import { ensureHackathon } from "./hackathons";
+import {
+  findUserByResume,
+  getApplication,
+  writeApplication,
+} from "./lib/applications";
+import { RESUME_UPLOAD_BUCKET } from "./lib/rateLimitBuckets";
 
 type MutationCtx = GenericMutationCtx<DataModelFromSchemaDefinition<typeof schema>>;
 
@@ -34,12 +40,19 @@ export const reserveResumeUpload = internalMutation({
     const windowStart = now - RESUME_UPLOAD_WINDOW_MS;
     const [recentClientRequests, recentGlobalRequests] = await Promise.all([
       ctx.db
-        .query("resumeUploadRequests")
-        .withIndex("by_user_createdAt", (q) => q.eq("userKey", requestKey).gte("createdAt", windowStart))
+        .query("rateLimits")
+        .withIndex("by_bucket_createdAt", (q) => q.eq("bucket", RESUME_UPLOAD_BUCKET))
+        .filter((q) =>
+          q.and(
+            q.eq(q.field("key"), requestKey),
+            q.gte(q.field("createdAt"), windowStart),
+          ),
+        )
         .collect(),
       ctx.db
-        .query("resumeUploadRequests")
-        .withIndex("by_createdAt", (q) => q.gte("createdAt", windowStart))
+        .query("rateLimits")
+        .withIndex("by_bucket_createdAt", (q) => q.eq("bucket", RESUME_UPLOAD_BUCKET))
+        .filter((q) => q.gte(q.field("createdAt"), windowStart))
         .take(MAX_GLOBAL_RESUME_UPLOADS_PER_WINDOW),
     ]);
 
@@ -50,7 +63,11 @@ export const reserveResumeUpload = internalMutation({
       throw new Error("Too many resume upload attempts. Please wait a few minutes and try again.");
     }
 
-    await ctx.db.insert("resumeUploadRequests", { userKey: requestKey, createdAt: now });
+    await ctx.db.insert("rateLimits", {
+      bucket: RESUME_UPLOAD_BUCKET,
+      key: requestKey,
+      createdAt: now,
+    });
   },
 });
 
@@ -104,10 +121,7 @@ async function upsertRegistration(
   const { hackathonId, resumeStorageId: rawStorageId, ...fields } = data;
   await ensureHackathon(ctx, hackathonId);
 
-  const existing = await ctx.db
-    .query("registrations")
-    .withIndex("by_user_hackathon", (q) => q.eq("userId", userId).eq("hackathonId", hackathonId))
-    .first();
+  const existing = getApplication(user, hackathonId);
 
   if (status === "submitted" && existing?.status === "submitted") {
     throw new Error("You have already submitted an application.");
@@ -122,17 +136,14 @@ async function upsertRegistration(
       ? await ctx.db.system.get("_storage", resumeStorageId)
       : null;
     const attachment = resumeStorageId
-      ? await ctx.db
-        .query("registrations")
-        .withIndex("by_resume", (q) => q.eq("answers.resumeStorageId", resumeStorageId))
-        .first()
+      ? await findUserByResume(ctx, resumeStorageId)
       : null;
 
-    if (attachment && attachment._id !== existing?._id) {
+    if (attachment && attachment._id !== userId) {
       throw new Error("This resume is already attached to another application.");
     }
 
-    const retainingOwnResume = !!attachment && attachment._id === existing?._id;
+    const retainingOwnResume = attachment?._id === userId;
     const session = resumeUploadToken
       ? await ctx.db
         .query("resumeUploadSessions")
@@ -147,8 +158,6 @@ async function upsertRegistration(
       session.createdAt >= now - RESUME_UPLOAD_EXPIRY_MS
     );
 
-    // New attachments must come from the HTTP upload route, which parses bytes with
-    // pdf-lib before storage and issues a short-lived capability token (verifiedAt).
     if (
       !metadata ||
       metadata.contentType !== "application/pdf" ||
@@ -164,36 +173,26 @@ async function upsertRegistration(
     }
   }
 
-  const answers = {
+  const submittedAt = status === "submitted" ? Date.now() : undefined;
+  const previousResume = existing?.resumeStorageId;
+  const application = {
+    hackathonId,
+    status,
+    eligibilityStatus: existing?.eligibilityStatus ?? ("unreviewed" as const),
+    submittedAt,
+    reviewedAt: existing?.reviewedAt,
+    reviewedBy: existing?.reviewedBy,
+    checkedInAt: existing?.checkedInAt,
+    updatedAt: Date.now(),
     ...fields,
     email: verifiedEmail,
     resumeStorageId: resumeStorageId ?? undefined,
   };
-  const submittedAt = status === "submitted" ? Date.now() : undefined;
 
-  let registrationId;
-  if (existing) {
-    const previousResume = existing.answers.resumeStorageId;
-    await ctx.db.patch(existing._id, {
-      answers,
-      status,
-      submittedAt,
-      updatedAt: Date.now(),
-    });
-    if (previousResume && previousResume !== resumeStorageId) {
-      await ctx.storage.delete(previousResume);
-    }
-    registrationId = existing._id;
-  } else {
-    registrationId = await ctx.db.insert("registrations", {
-      userId,
-      hackathonId,
-      status,
-      eligibilityStatus: "unreviewed",
-      answers,
-      submittedAt,
-      updatedAt: Date.now(),
-    });
+  await writeApplication(ctx, userId, application);
+
+  if (previousResume && previousResume !== resumeStorageId) {
+    await ctx.storage.delete(previousResume);
   }
 
   if (status === "submitted" && submittedAt !== undefined) {
@@ -205,7 +204,7 @@ async function upsertRegistration(
   }
 
   return {
-    registrationId,
+    registrationId: userId,
     isNew: !existing,
     ok: true as const,
   };
@@ -250,10 +249,7 @@ export const deleteResumeUpload = mutation({
     if (!session || session.consumedAt) return { ok: true as const };
 
     if (session.storageId) {
-      const attachment = await ctx.db
-        .query("registrations")
-        .withIndex("by_resume", (q) => q.eq("answers.resumeStorageId", session.storageId))
-        .first();
+      const attachment = await findUserByResume(ctx, session.storageId);
       if (!attachment) await ctx.storage.delete(session.storageId);
     }
     await ctx.db.delete(session._id);
@@ -271,24 +267,24 @@ export const cleanupExpiredResumeUploads = internalMutation({
       .take(CLEANUP_PAGE_SIZE);
     for (const session of expiredSessions) {
       if (session.storageId) {
-        const attachment = await ctx.db
-          .query("registrations")
-          .withIndex("by_resume", (q) => q.eq("answers.resumeStorageId", session.storageId))
-          .first();
+        const attachment = await findUserByResume(ctx, session.storageId);
         if (!attachment) await ctx.storage.delete(session.storageId);
       }
       await ctx.db.delete(session._id);
     }
 
-    const expiredRequests = await ctx.db
-      .query("resumeUploadRequests")
-      .withIndex("by_createdAt", (q) => q.lt("createdAt", cutoff))
+    const expiredRateLimits = await ctx.db
+      .query("rateLimits")
+      .withIndex("by_bucket_createdAt", (q) => q.eq("bucket", RESUME_UPLOAD_BUCKET))
+      .filter((q) => q.lt(q.field("createdAt"), cutoff))
       .take(CLEANUP_PAGE_SIZE);
-    for (const request of expiredRequests) await ctx.db.delete(request._id);
+    for (const entry of expiredRateLimits) {
+      await ctx.db.delete(entry._id);
+    }
 
     if (
       expiredSessions.length === CLEANUP_PAGE_SIZE ||
-      expiredRequests.length === CLEANUP_PAGE_SIZE
+      expiredRateLimits.length === CLEANUP_PAGE_SIZE
     ) {
       await ctx.scheduler.runAfter(0, cleanupExpiredResumeUploadsRef, {});
     }

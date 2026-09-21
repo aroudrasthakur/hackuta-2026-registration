@@ -110,7 +110,8 @@ Convex deployment variables:
 
 | Variable | Purpose |
 | --- | --- |
-| `REGISTRATION_ALLOWED_ORIGINS` | Exact browser origins allowed to upload resumes |
+| `REGISTRATION_ALLOWED_ORIGINS` | Browser origins allowed to upload resumes (plus `SITE_URL` origin automatically) |
+| `SITE_URL` | Frontend origin for Convex Auth redirects; local values also allow `localhost` + `127.0.0.1` resume uploads |
 | `REGISTRATION_ADMIN_IDENTITY_KEYS` | Organizer identity keys for admin queries |
 | `SMTP_*`, `EMAIL_FROM`, `CONTACT_EMAIL_TO` | cPanel SMTP delivery |
 | `JWT_PRIVATE_KEY`, `JWKS` | Convex Auth signing keys |

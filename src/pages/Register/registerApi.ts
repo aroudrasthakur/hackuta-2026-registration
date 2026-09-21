@@ -63,11 +63,19 @@ export async function uploadResume(file: File): Promise<ResumeUploadSession> {
   const convexSiteUrl = getConvexSiteUrl();
   if (!convexSiteUrl) throw new Error(SUBMIT_ERROR_MESSAGE);
 
-  const response = await fetch(`${convexSiteUrl}/resume-upload`, {
-    method: "POST",
-    headers: { "Content-Type": "application/pdf" },
-    body: file,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${convexSiteUrl}/resume-upload`, {
+      method: "POST",
+      headers: { "Content-Type": "application/pdf" },
+      body: file,
+    });
+  } catch {
+    throw new Error(
+      "Resume upload was blocked. Ask your organizer to allow this site origin in REGISTRATION_ALLOWED_ORIGINS on the Convex deployment.",
+    );
+  }
+
   const data = await response.json().catch(() => ({}));
   if (
     !response.ok ||

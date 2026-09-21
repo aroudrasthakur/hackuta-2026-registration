@@ -1,49 +1,38 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
+import { HACKATHON_ID } from "../shared/registration/constants";
 import { resolveAuthenticatedUser } from "./authenticatedUser";
 import { isRegistrationAdmin } from "./registrationSecurity";
+import { getApplication } from "./lib/applications";
+
+function projectCurrentUser(user: Awaited<ReturnType<typeof resolveAuthenticatedUser>>) {
+  return {
+    _id: user._id,
+    identityKey: user.identityKey,
+    authSubject: user.authSubject,
+    email: user.email,
+    displayName: user.displayName,
+    emailVerificationTime: user.emailVerificationTime,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    hasApplication: user.applications != null,
+  };
+}
 
 export const getCurrentUser = query({
   args: {},
-  handler: async (ctx) => resolveAuthenticatedUser(ctx),
+  handler: async (ctx) => projectCurrentUser(await resolveAuthenticatedUser(ctx)),
 });
 
-/**
- * Get all registrations for a user.
- */
-export const getRegistrationsByUser = query({
-  args: { userId: v.string() },
-  handler: async (ctx, { userId }) => {
+export const getMyApplication = query({
+  args: { hackathonId: v.optional(v.string()) },
+  handler: async (ctx, { hackathonId = HACKATHON_ID }) => {
     const user = await resolveAuthenticatedUser(ctx);
-    if (user._id !== userId) {
-      throw new Error("Not authorized to access this user's registrations.");
-    }
-    return await ctx.db
-      .query("registrations")
-      .withIndex("by_user_hackathon", (q) => q.eq("userId", user._id))
-      .collect();
+    return getApplication(user, hackathonId);
   },
 });
 
-/**
- * Get a specific registration.
- */
-export const getRegistration = query({
-  args: { registrationId: v.id("registrations") },
-  handler: async (ctx, { registrationId }) => {
-    const user = await resolveAuthenticatedUser(ctx);
-    const registration = await ctx.db.get(registrationId);
-    if (!registration || registration.userId !== user._id) {
-      throw new Error("Not authorized to access this registration.");
-    }
-    return registration;
-  },
-});
-
-/**
- * Get all registrations for a hackathon (admin view).
- */
-export const getRegistrationsByHackathon = query({
+export const getApplicationsByHackathon = query({
   args: { hackathonId: v.string() },
   handler: async (ctx, { hackathonId }) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -53,16 +42,23 @@ export const getRegistrationsByHackathon = query({
     if (!isRegistrationAdmin(identity.tokenIdentifier)) {
       throw new Error("Not authorized to access hackathon registrations.");
     }
-    return await ctx.db
-      .query("registrations")
-      .withIndex("by_hackathon_status", (q) => q.eq("hackathonId", hackathonId))
+
+    const users = await ctx.db
+      .query("users")
+      .withIndex("by_application_status", (q) => q.eq("applications.hackathonId", hackathonId))
       .collect();
+
+    return users
+      .filter((user) => user.applications?.hackathonId === hackathonId)
+      .map((user) => ({
+        userId: user._id,
+        email: user.email ?? user.applications?.email ?? null,
+        displayName: user.displayName ?? null,
+        application: user.applications!,
+      }));
   },
 });
 
-/**
- * Get a hackathon by slug.
- */
 export const getHackathonBySlug = query({
   args: { slug: v.string() },
   handler: async (ctx, { slug }) => {

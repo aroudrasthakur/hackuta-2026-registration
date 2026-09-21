@@ -94,7 +94,7 @@ export default function SignInPage() {
 
     if (client) {
 
-      await claimLegacy({});
+      await claimLegacy({}).catch(() => undefined);
 
     }
 

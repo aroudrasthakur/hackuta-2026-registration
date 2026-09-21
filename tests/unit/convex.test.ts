@@ -3,6 +3,7 @@ import { convexTest } from "convex-test";
 import { makeFunctionReference } from "convex/server";
 import { describe, expect, it, vi } from "vitest";
 import schema from "../../convex/schema";
+import { RESUME_UPLOAD_BUCKET } from "../../convex/lib/rateLimitBuckets";
 import { MIN_GRADUATION_YEAR } from "../../shared/registration/constants";
 
 const modules = import.meta.glob("../../convex/**/*.ts", { eager: false });
@@ -144,8 +145,8 @@ describe("convex registrations", () => {
       data: { ...validRegistrationData, resumeStorageId: upload.storageId },
       resumeUploadToken: upload.token,
     });
-    const registration = await t.run((ctx) => ctx.db.query("registrations").first());
-    expect(registration?.answers.resumeStorageId).toBe(upload.storageId);
+    const user = await t.run((ctx) => ctx.db.query("users").first());
+    expect(user?.applications?.resumeStorageId).toBe(upload.storageId);
     const session = await t.run((ctx) => ctx.db.query("resumeUploadSessions").first());
     expect(session?.consumedAt).toEqual(expect.any(Number));
   }, 10_000);
@@ -508,10 +509,14 @@ describe("resume HTTP validation and lifecycle", () => {
   it("scheduled cleanup removes expired rate-limit records", async () => {
     const t = createTest();
     const stale = Date.now() - 31 * 60 * 1000;
-    await t.run((ctx) => ctx.db.insert("resumeUploadRequests", { userKey: "stale", createdAt: stale }));
+    await t.run((ctx) => ctx.db.insert("rateLimits", {
+      bucket: RESUME_UPLOAD_BUCKET,
+      key: "stale",
+      createdAt: stale,
+    }));
     const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now());
     await t.mutation(cleanup, {});
-    expect(await t.run((ctx) => ctx.db.query("resumeUploadRequests").collect())).toEqual([]);
+    expect(await t.run((ctx) => ctx.db.query("rateLimits").collect())).toEqual([]);
     clock.mockRestore();
   });
 
@@ -537,7 +542,7 @@ describe("convex queries", () => {
     const t = createTest() as unknown as ConvexTestClient;
 
     await expect(t.query("queries:getHackathonBySlug", { slug: "missing" })).resolves.toBeNull();
-    await expect(t.query("queries:getRegistrationsByUser", { userId: "missing" })).rejects.toThrow(
+    await expect(t.query("queries:getMyApplication", {})).rejects.toThrow(
       "Authentication required.",
     );
   });
@@ -554,21 +559,15 @@ describe("convex queries", () => {
     ).resolves.toMatchObject({ slug: "hackuta-2026", name: "HackUTA 2026" });
   });
 
-  it("only returns registrations for the authenticated user", async () => {
+  it("returns null when the authenticated user has no application", async () => {
     const t = createTest().withIdentity({
       tokenIdentifier: "provider-user",
       email: "sam@example.com",
     }) as unknown as ConvexTestClient;
     await seedHackathon(t);
-    const synced = await t.mutation("registrations:syncUser", {});
+    await t.mutation("registrations:syncUser", {});
 
-    await expect(
-      t.query("queries:getRegistrationsByUser", { userId: synced.userId }),
-    ).resolves.toEqual([]);
-
-    await expect(
-      t.query("queries:getRegistrationsByUser", { userId: "different-user" }),
-    ).rejects.toThrow("Not authorized");
+    await expect(t.query("queries:getMyApplication", {})).resolves.toBeNull();
   });
 
   it("returns the synchronized current user", async () => {
@@ -599,7 +598,7 @@ describe("convex queries", () => {
     );
   });
 
-  it("allows owned registration reads and rejects missing or foreign records", async () => {
+  it("allows owned application reads and admin hackathon listings", async () => {
     const base = createTest();
     vi.stubEnv("REGISTRATION_ADMIN_IDENTITY_KEYS", "email|sam@example.com");
     const t = base.withIdentity({
@@ -607,30 +606,28 @@ describe("convex queries", () => {
       email: "sam@example.com",
     }) as unknown as ConvexTestClient;
     await seedHackathon(t);
-    const user = await t.mutation("registrations:syncUser", {});
-    const created = await t.mutation("registrations:register", {
+    await t.mutation("registrations:syncUser", {});
+    await t.mutation("registrations:register", {
       data: validRegistrationData,
     });
 
     await expect(
-      t.query("queries:getRegistration", { registrationId: created.registrationId }),
-    ).resolves.toMatchObject({ userId: user.userId });
+      t.query("queries:getMyApplication", {}),
+    ).resolves.toMatchObject({ status: "submitted", hackathonId: "hackuta-2026" });
 
     const foreignUser = base.withIdentity({
       tokenIdentifier: "email|foreign@example.com",
       email: "foreign@example.com",
     }) as unknown as ConvexTestClient;
     await foreignUser.mutation("registrations:syncUser", {});
-    await expect(
-      foreignUser.query("queries:getRegistration", { registrationId: created.registrationId }),
-    ).rejects.toThrow("Not authorized");
+    await expect(foreignUser.query("queries:getMyApplication", {})).resolves.toBeNull();
 
     await expect(
-      t.query("queries:getRegistrationsByHackathon", { hackathonId: "hackuta-2026" }),
+      t.query("queries:getApplicationsByHackathon", { hackathonId: "hackuta-2026" }),
     ).resolves.toHaveLength(1);
 
     await expect(
-      foreignUser.query("queries:getRegistrationsByHackathon", { hackathonId: "hackuta-2026" }),
+      foreignUser.query("queries:getApplicationsByHackathon", { hackathonId: "hackuta-2026" }),
     ).rejects.toThrow("Not authorized to access hackathon registrations");
   });
 });
@@ -695,18 +692,17 @@ describe("convex applicant auth flows", () => {
     });
 
     await base.run(async (ctx) => {
-      await ctx.db.insert("registrations", {
-        userId: anonymousUserId,
-        hackathonId: "hackuta-2026",
-        status: "submitted",
-        eligibilityStatus: "unreviewed",
-        answers: {
+      await ctx.db.patch(anonymousUserId, {
+        applications: {
+          hackathonId: "hackuta-2026",
+          status: "submitted",
+          eligibilityStatus: "unreviewed",
           firstName: validRegistrationData.firstName,
           lastName: validRegistrationData.lastName,
           email: "legacy@example.com",
+          submittedAt: Date.now(),
+          updatedAt: Date.now(),
         },
-        submittedAt: Date.now(),
-        updatedAt: Date.now(),
       });
     });
 
@@ -736,18 +732,17 @@ describe("convex applicant auth flows", () => {
         updatedAt: Date.now(),
       }));
       await base.run(async (ctx) => {
-        await ctx.db.insert("registrations", {
-          userId: anonymousUserId,
-          hackathonId: "hackuta-2026",
-          status: "submitted",
-          eligibilityStatus: "unreviewed",
-          answers: {
+        await ctx.db.patch(anonymousUserId, {
+          applications: {
+            hackathonId: "hackuta-2026",
+            status: "submitted",
+            eligibilityStatus: "unreviewed",
             firstName: validRegistrationData.firstName,
             lastName: validRegistrationData.lastName,
             email: "legacy@example.com",
+            submittedAt: Date.now(),
+            updatedAt: Date.now(),
           },
-          submittedAt: Date.now(),
-          updatedAt: Date.now(),
         });
       });
     }
@@ -767,8 +762,8 @@ describe("convex applicant auth flows", () => {
     const t = await authTest();
     await t.mutation("registrations:register", { data: validRegistrationData });
     await drainScheduledFunctions(t);
-    const registration = await t.run((ctx) => ctx.db.query("registrations").first());
-    expect(registration?.answers.email).toBe("applicant@example.com");
+    const user = await t.run((ctx) => ctx.db.query("users").first());
+    expect(user?.applications?.email).toBe("applicant@example.com");
   });
 
   it("returns dashboard data with registration and timeline", async () => {
@@ -833,13 +828,16 @@ describe("convex applicant auth flows", () => {
     await drainScheduledFunctions(t);
 
     await t.run(async (ctx) => {
-      const registration = await ctx.db.query("registrations").first();
-      if (!registration) {
-        throw new Error("Expected registration");
+      const user = await ctx.db.query("users").first();
+      if (!user?.applications) {
+        throw new Error("Expected application");
       }
-      await ctx.db.patch(registration._id, {
-        status: "accepted",
-        reviewedAt: Date.now(),
+      await ctx.db.patch(user._id, {
+        applications: {
+          ...user.applications,
+          status: "accepted",
+          reviewedAt: Date.now(),
+        },
       });
     });
 

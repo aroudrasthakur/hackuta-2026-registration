@@ -3,8 +3,14 @@ import { mutation, query } from "./_generated/server";
 import { HACKATHON_ID } from "../shared/registration/constants";
 import { resolveAuthenticatedUser } from "./authenticatedUser";
 import { normalizeEmail } from "./lib/normalizeEmail";
+import {
+  findUsersByApplicationEmail,
+  getApplication,
+  projectApplicantAnswers,
+  writeApplication,
+} from "./lib/applications";
 
-type RegistrationStatus =
+type ApplicationStatus =
   | "draft"
   | "submitted"
   | "accepted"
@@ -19,8 +25,8 @@ type TimelineEvent = {
   complete: boolean;
 };
 
-function buildTimeline(registration: {
-  status: RegistrationStatus;
+function buildTimeline(application: {
+  status: ApplicationStatus;
   submittedAt?: number;
   reviewedAt?: number;
   updatedAt: number;
@@ -35,34 +41,34 @@ function buildTimeline(registration: {
     complete: verifiedAt !== null,
   });
 
-  if (registration) {
+  if (application) {
     events.push({
       id: "registration-started",
       label: "Registration started",
-      timestamp: registration.updatedAt,
+      timestamp: application.updatedAt,
       complete: true,
     });
 
-    if (registration.submittedAt) {
+    if (application.submittedAt) {
       events.push({
         id: "application-submitted",
         label: "Application submitted",
-        timestamp: registration.submittedAt,
+        timestamp: application.submittedAt,
         complete: true,
       });
     }
 
-    if (registration.status === "submitted" && !registration.reviewedAt) {
+    if (application.status === "submitted" && !application.reviewedAt) {
       events.push({
         id: "under-review",
         label: "Under review",
-        timestamp: registration.submittedAt ?? null,
+        timestamp: application.submittedAt ?? null,
         complete: false,
       });
     }
 
-    if (registration.reviewedAt) {
-      const statusLabels: Record<RegistrationStatus, string> = {
+    if (application.reviewedAt) {
+      const statusLabels: Record<ApplicationStatus, string> = {
         draft: "Draft saved",
         submitted: "Application submitted",
         accepted: "Accepted",
@@ -71,9 +77,9 @@ function buildTimeline(registration: {
         withdrawn: "Withdrawn",
       };
       events.push({
-        id: `status-${registration.status}`,
-        label: statusLabels[registration.status],
-        timestamp: registration.reviewedAt,
+        id: `status-${application.status}`,
+        label: statusLabels[application.status],
+        timestamp: application.reviewedAt,
         complete: true,
       });
     }
@@ -82,25 +88,13 @@ function buildTimeline(registration: {
   return events;
 }
 
-async function findLegacyRegistrations(
+async function findLegacyApplications(
   ctx: Parameters<typeof resolveAuthenticatedUser>[0],
   hackathonId: string,
   email: string,
 ) {
-  const matches = await ctx.db
-    .query("registrations")
-    .withIndex("by_hackathon_status", (q) => q.eq("hackathonId", hackathonId))
-    .filter((q) => q.eq(q.field("answers.email"), email))
-    .collect();
-
-  const legacy = [];
-  for (const registration of matches) {
-    const owner = await ctx.db.get(registration.userId);
-    if (owner?.isAnonymous === true) {
-      legacy.push(registration);
-    }
-  }
-  return legacy;
+  const matches = await findUsersByApplicationEmail(ctx, hackathonId, email);
+  return matches.filter((owner) => owner.isAnonymous === true && owner.applications);
 }
 
 export const claimLegacyRegistrationIfEligible = mutation({
@@ -114,16 +108,11 @@ export const claimLegacyRegistrationIfEligible = mutation({
       return { claimed: false as const, reason: "no_verified_email" as const };
     }
 
-    const existing = await ctx.db
-      .query("registrations")
-      .withIndex("by_user_hackathon", (q) => q.eq("userId", user._id))
-      .filter((q) => q.eq(q.field("hackathonId"), hackathonId))
-      .first();
-    if (existing) {
+    if (getApplication(user, hackathonId)) {
       return { claimed: false as const, reason: "already_owned" as const };
     }
 
-    const legacyMatches = await findLegacyRegistrations(ctx, hackathonId, verifiedEmail);
+    const legacyMatches = await findLegacyApplications(ctx, hackathonId, verifiedEmail);
     if (legacyMatches.length === 0) {
       return { claimed: false as const, reason: "none_found" as const };
     }
@@ -134,13 +123,24 @@ export const claimLegacyRegistrationIfEligible = mutation({
       return { claimed: false as const, reason: "ambiguous" as const };
     }
 
-    const legacy = legacyMatches[0]!;
-    await ctx.db.patch(legacy._id, {
-      userId: user._id,
-      updatedAt: Date.now(),
+    const legacyOwner = legacyMatches[0]!;
+    const legacyApplication = legacyOwner.applications;
+    if (!legacyApplication) {
+      return { claimed: false as const, reason: "none_found" as const };
+    }
+
+    const now = Date.now();
+    await writeApplication(ctx, user._id, {
+      ...legacyApplication,
+      email: verifiedEmail,
+      updatedAt: now,
+    });
+    await ctx.db.patch(legacyOwner._id, {
+      applications: undefined,
+      updatedAt: now,
     });
 
-    return { claimed: true as const, registrationId: legacy._id };
+    return { claimed: true as const, registrationId: user._id };
   },
 });
 
@@ -160,21 +160,17 @@ export const getApplicantRoutingState = query({
     }
 
     const user = await resolveAuthenticatedUser(ctx);
-    const registration = await ctx.db
-      .query("registrations")
-      .withIndex("by_user_hackathon", (q) => q.eq("userId", user._id))
-      .filter((q) => q.eq(q.field("hackathonId"), hackathonId))
-      .first();
+    const application = getApplication(user, hackathonId);
 
     const hasSubmittedRegistration =
-      registration !== null &&
-      registration.status !== "draft";
+      application !== null &&
+      application.status !== "draft";
 
     return {
       authenticated: true as const,
       verifiedEmail: normalizeEmail(user.email) ?? null,
-      hasRegistration: registration !== null,
-      registrationStatus: registration?.status ?? null,
+      hasRegistration: application !== null,
+      registrationStatus: application?.status ?? null,
       hasSubmittedRegistration,
     };
   },
@@ -186,51 +182,16 @@ export const getMyApplicantDashboard = query({
   },
   handler: async (ctx, { hackathonId = HACKATHON_ID }) => {
     const user = await resolveAuthenticatedUser(ctx);
-    const registration = await ctx.db
-      .query("registrations")
-      .withIndex("by_user_hackathon", (q) => q.eq("userId", user._id))
-      .filter((q) => q.eq(q.field("hackathonId"), hackathonId))
-      .first();
+    const application = getApplication(user, hackathonId);
 
     const hackathon = await ctx.db
       .query("hackathons")
       .withIndex("by_slug", (q) => q.eq("slug", hackathonId))
       .first();
 
-    let resumeStatus: "none" | "attached" = "none";
-    if (registration?.answers.resumeStorageId) {
-      resumeStatus = "attached";
-    }
-
-    const answers = registration?.answers;
-    const applicantAnswers = answers
-      ? {
-          firstName: answers.firstName,
-          lastName: answers.lastName,
-          phone: answers.phone,
-          age: answers.age,
-          school: answers.school,
-          levelOfStudy: answers.levelOfStudy,
-          major: answers.major,
-          graduationYear: answers.graduationYear,
-          gender: answers.gender,
-          raceEthnicity: answers.raceEthnicity,
-          dietaryRestrictions: answers.dietaryRestrictions,
-          otherDietary: answers.otherDietary,
-          tshirtSize: answers.tshirtSize,
-          firstHackathon: answers.firstHackathon,
-          hearAbout: answers.hearAbout,
-          linkedin: answers.linkedin,
-          github: answers.github,
-          portfolio: answers.portfolio,
-          accessibilityNeeds: answers.accessibilityNeeds,
-          emergencyContactName: answers.emergencyContactName,
-          emergencyContactPhone: answers.emergencyContactPhone,
-          mlhCommunicationsConsent: answers.mlhCommunicationsConsent,
-        }
-      : null;
-
-    const timeline = buildTimeline(registration, user);
+    const resumeStatus: "none" | "attached" = application?.resumeStorageId ? "attached" : "none";
+    const applicantAnswers = application ? projectApplicantAnswers(application) : null;
+    const timeline = buildTimeline(application, user);
 
     if (hackathon) {
       timeline.push({
@@ -252,13 +213,13 @@ export const getMyApplicantDashboard = query({
         displayName: user.displayName ?? null,
         verifiedEmail: normalizeEmail(user.email) ?? null,
       },
-      registration: registration
+      registration: application
         ? {
-            id: registration._id,
-            status: registration.status,
-            eligibilityStatus: registration.eligibilityStatus,
-            submittedAt: registration.submittedAt ?? null,
-            updatedAt: registration.updatedAt,
+            id: user._id,
+            status: application.status,
+            eligibilityStatus: application.eligibilityStatus,
+            submittedAt: application.submittedAt ?? null,
+            updatedAt: application.updatedAt,
             answers: applicantAnswers,
             resumeStatus,
           }

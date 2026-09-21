@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 
 vi.mock("convex/react", () => ({
   useQuery: vi.fn(() => undefined),
+  useMutation: vi.fn(() => vi.fn(async () => ({ ok: true, userId: "user-id" }))),
 }));
 
 vi.mock("../../src/convex/client", () => ({

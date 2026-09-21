@@ -13,13 +13,26 @@ describe("registrationSecurity", () => {
 
   it("rejects origins when the allowlist is empty", () => {
     vi.stubEnv("REGISTRATION_ALLOWED_ORIGINS", "");
+    vi.stubEnv("SITE_URL", "");
     expect(getRegistrationAllowedOrigins()).toEqual([]);
     expect(isOriginAllowed("https://hackuta.org", [])).toBe(false);
     expect(isOriginAllowed(null, [])).toBe(false);
   });
 
+  it("includes local dev origin variants from SITE_URL", () => {
+    vi.stubEnv("REGISTRATION_ALLOWED_ORIGINS", "");
+    vi.stubEnv("SITE_URL", "http://127.0.0.1:5273");
+    const allowed = getRegistrationAllowedOrigins();
+    expect(allowed).toEqual([
+      "http://127.0.0.1:5273",
+      "http://localhost:5273",
+    ]);
+    expect(isOriginAllowed("http://localhost:5273", allowed)).toBe(true);
+  });
+
   it("accepts only configured production origins", () => {
     vi.stubEnv("REGISTRATION_ALLOWED_ORIGINS", "https://hackuta.org, https://www.hackuta.org");
+    vi.stubEnv("SITE_URL", "");
     const allowed = getRegistrationAllowedOrigins();
     expect(allowed).toEqual(["https://hackuta.org", "https://www.hackuta.org"]);
     expect(isOriginAllowed("https://hackuta.org", allowed)).toBe(true);

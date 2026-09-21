@@ -102,45 +102,60 @@ export const claimLegacyRegistrationIfEligible = mutation({
     hackathonId: v.optional(v.string()),
   },
   handler: async (ctx, { hackathonId = HACKATHON_ID }) => {
-    const user = await resolveAuthenticatedUser(ctx);
-    const verifiedEmail = normalizeEmail(user.email);
-    if (!verifiedEmail) {
-      return { claimed: false as const, reason: "no_verified_email" as const };
-    }
+    try {
+      const user = await resolveAuthenticatedUser(ctx);
+      const verifiedEmail = normalizeEmail(user.email);
+      if (!verifiedEmail) {
+        return { claimed: false as const, reason: "no_verified_email" as const };
+      }
 
-    if (getApplication(user, hackathonId)) {
-      return { claimed: false as const, reason: "already_owned" as const };
-    }
+      if (getApplication(user, hackathonId)) {
+        return { claimed: false as const, reason: "already_owned" as const };
+      }
 
-    const legacyMatches = await findLegacyApplications(ctx, hackathonId, verifiedEmail);
-    if (legacyMatches.length === 0) {
-      return { claimed: false as const, reason: "none_found" as const };
-    }
-    if (legacyMatches.length > 1) {
-      console.warn(
-        "Ambiguous legacy registration claim for email with multiple anonymous owners.",
-      );
-      return { claimed: false as const, reason: "ambiguous" as const };
-    }
+      const legacyMatches = await findLegacyApplications(ctx, hackathonId, verifiedEmail);
+      if (legacyMatches.length === 0) {
+        return { claimed: false as const, reason: "none_found" as const };
+      }
+      if (legacyMatches.length > 1) {
+        console.warn(
+          "Ambiguous legacy registration claim for email with multiple anonymous owners.",
+        );
+        return { claimed: false as const, reason: "ambiguous" as const };
+      }
 
-    const legacyOwner = legacyMatches[0]!;
-    const legacyApplication = legacyOwner.applications;
-    if (!legacyApplication) {
-      return { claimed: false as const, reason: "none_found" as const };
+      const legacyOwner = legacyMatches[0]!;
+      const legacyApplication = legacyOwner.applications;
+      if (!legacyApplication) {
+        return { claimed: false as const, reason: "none_found" as const };
+      }
+
+      const now = Date.now();
+      await writeApplication(ctx, user._id, {
+        ...legacyApplication,
+        email: verifiedEmail,
+        updatedAt: now,
+      });
+
+      const {
+        _id: _legacyId,
+        _creationTime: _legacyCreatedAt,
+        applications: _removedApplication,
+        ...legacyOwnerFields
+      } = legacyOwner;
+      void _legacyId;
+      void _legacyCreatedAt;
+      void _removedApplication;
+      await ctx.db.replace(legacyOwner._id, {
+        ...legacyOwnerFields,
+        updatedAt: now,
+      });
+
+      return { claimed: true as const, registrationId: user._id };
+    } catch (error) {
+      console.error("claimLegacyRegistrationIfEligible failed:", error);
+      return { claimed: false as const, reason: "error" as const };
     }
-
-    const now = Date.now();
-    await writeApplication(ctx, user._id, {
-      ...legacyApplication,
-      email: verifiedEmail,
-      updatedAt: now,
-    });
-    await ctx.db.patch(legacyOwner._id, {
-      applications: undefined,
-      updatedAt: now,
-    });
-
-    return { claimed: true as const, registrationId: user._id };
   },
 });
 

@@ -506,6 +506,25 @@ describe("convex queries", () => {
     ).resolves.toMatchObject({ slug: "hackuta-2026", name: "HackUTA 2026" });
   });
 
+  it("syncs stale hackathon schedule dates when seed runs again", async () => {
+    const t = createTest() as unknown as ConvexTestClient;
+    const hackathonId = await t.mutation("seed:seedHackathon", {});
+
+    await (t as unknown as TestInstance).run(async (ctx) => {
+      await ctx.db.patch(hackathonId, {
+        registrationOpensAt: Date.parse("2026-09-01T00:00:00-05:00"),
+      });
+    });
+
+    await t.mutation("seed:seedHackathon", {});
+
+    await expect(
+      t.query("queries:getHackathonBySlug", { slug: "hackuta-2026" }),
+    ).resolves.toMatchObject({
+      registrationOpensAt: Date.parse("2026-09-21T00:00:00-05:00"),
+    });
+  });
+
   it("returns null when the authenticated user has no application", async () => {
     const t = createTest().withIdentity({
       tokenIdentifier: "provider-user",

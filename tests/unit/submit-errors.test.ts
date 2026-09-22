@@ -32,5 +32,20 @@ describe("submit error mapping", () => {
     );
     expect(mapResumeUploadHttpError(429, { error: "Too many uploads. Please try again later." }))
       .toBe("Too many uploads. Please try again later.");
+    expect(mapResumeUploadHttpError(413, {})).toBe("Your PDF must be 5 MB or smaller.");
+    expect(mapResumeUploadHttpError(415, {})).toBe("Please select a PDF file.");
+    expect(mapResumeUploadHttpError(403, {})).toBe(
+      "Resume upload is unavailable. Please try again later or contact us.",
+    );
+    expect(mapResumeUploadHttpError(500, {})).toBe(
+      "We couldn't upload your resume. Please try again.",
+    );
+  });
+
+  it("ignores malformed error bodies", () => {
+    expect(mapResumeUploadHttpError(429, { error: "  " })).toBe(
+      "Too many upload attempts. Please wait a few minutes and try again.",
+    );
+    expect(mapConvexErrorToUserMessage("not an error")).toBe(SUBMIT_ERROR_MESSAGE);
   });
 });

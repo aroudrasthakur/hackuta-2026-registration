@@ -1,6 +1,12 @@
 import { makeFunctionReference } from "convex/server";
 import type { RegistrationPayload } from "../../../shared/registration/types";
 import { validateResume } from "../../../shared/registration/resume";
+import {
+  mapConvexErrorToUserMessage,
+  mapResumeUploadHttpError,
+  RESUME_UPLOAD_ERROR_MESSAGE,
+  SUBMIT_ERROR_MESSAGE,
+} from "../../../shared/registration/submitErrors";
 import { getConvexClient, normalizeConvexUrl } from "../../convex/client";
 import { isMockApiEnabled } from "../../constants/mockAuth";
 
@@ -14,8 +20,6 @@ function getConvexSiteUrl() {
   return normalizeConvexUrl(import.meta.env.VITE_CONVEX_SITE_URL)
     || convexUrl?.replace(".convex.cloud", ".convex.site");
 }
-
-const SUBMIT_ERROR_MESSAGE = "We couldn't submit your application. Please try again.";
 
 const registerRef = makeFunctionReference<"mutation">("registrations:register");
 const deleteResumeUploadRef = makeFunctionReference<"mutation">("registrations:deleteResumeUpload");
@@ -44,6 +48,10 @@ async function callConvexMutation<T>(
     if (import.meta.env.DEV) {
       console.error("Convex mutation failed:", error);
     }
+    const mapped = mapConvexErrorToUserMessage(error);
+    if (mapped !== SUBMIT_ERROR_MESSAGE) {
+      throw new Error(mapped, { cause: error });
+    }
     const detail = error instanceof Error ? error.message.trim() : "";
     if (import.meta.env.DEV && detail && detail !== "Server Error") {
       throw new Error(detail, { cause: error });
@@ -61,7 +69,7 @@ export async function uploadResume(file: File): Promise<ResumeUploadSession> {
   }
 
   const convexSiteUrl = getConvexSiteUrl();
-  if (!convexSiteUrl) throw new Error(SUBMIT_ERROR_MESSAGE);
+  if (!convexSiteUrl) throw new Error(RESUME_UPLOAD_ERROR_MESSAGE);
 
   let response: Response;
   try {
@@ -72,7 +80,7 @@ export async function uploadResume(file: File): Promise<ResumeUploadSession> {
     });
   } catch {
     throw new Error(
-      "Resume upload was blocked. Ask your organizer to allow this site origin in REGISTRATION_ALLOWED_ORIGINS on the Convex deployment.",
+      "We couldn't upload your resume. Check your connection and try again.",
     );
   }
 
@@ -84,7 +92,7 @@ export async function uploadResume(file: File): Promise<ResumeUploadSession> {
     typeof data.uploadToken !== "string" ||
     !data.uploadToken
   ) {
-    throw new Error(SUBMIT_ERROR_MESSAGE);
+    throw new Error(mapResumeUploadHttpError(response.status, data));
   }
 
   return { storageId: data.storageId, uploadToken: data.uploadToken };

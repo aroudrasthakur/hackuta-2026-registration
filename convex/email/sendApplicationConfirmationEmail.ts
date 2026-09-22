@@ -9,14 +9,15 @@ export const sendApplicationConfirmationEmail = internalAction({
   args: {
     email: v.string(),
     firstName: v.string(),
+    lastName: v.string(),
     submittedAt: v.number(),
   },
-  handler: async (_ctx, { email, firstName, submittedAt }) => {
-    const profileUrl = process.env.SITE_URL?.trim().replace(/\/+$/, "");
+  handler: async (_ctx, { email, firstName, lastName, submittedAt }) => {
+    const websiteUrl = process.env.HACKUTA_WEBSITE_URL?.trim().replace(/\/+$/, "");
     const content = buildApplicationConfirmationEmailContent({
-      firstName,
+      applicantName: `${firstName} ${lastName}`.trim(),
       submittedAt,
-      profileUrl: profileUrl ? `${profileUrl}/profile` : undefined,
+      ...(websiteUrl ? { websiteUrl } : {}),
     });
 
     await sendMailMessage({

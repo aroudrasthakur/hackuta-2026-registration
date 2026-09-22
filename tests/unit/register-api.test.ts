@@ -65,12 +65,28 @@ describe("uploadResume", () => {
     {},
   ])("rejects malformed upload responses (%j)", async (response) => {
     vi.stubEnv("VITE_CONVEX_URL", "https://example.convex.cloud");
+    vi.stubEnv("VITE_USE_MOCK_API", "false");
     vi.resetModules();
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify(response), { status: 201 }));
     const { uploadResume } = await import("../../src/pages/Register/registerApi");
-    await expect(uploadResume(new File(["%PDF-1.7"], "resume.pdf"))).rejects.toThrow();
+    await expect(uploadResume(new File(["%PDF-1.7"], "resume.pdf"))).rejects.toThrow(
+      "We couldn't upload your resume. Please try again.",
+    );
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("surfaces server-provided resume upload errors", async () => {
+    vi.stubEnv("VITE_CONVEX_URL", "https://example.convex.cloud");
+    vi.stubEnv("VITE_USE_MOCK_API", "false");
+    vi.resetModules();
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "The file is not a valid PDF." }), { status: 422 }),
+    );
+    const { uploadResume } = await import("../../src/pages/Register/registerApi");
+    await expect(uploadResume(new File(["%PDF-1.7"], "resume.pdf"))).rejects.toThrow(
+      "The file is not a valid PDF.",
+    );
   });
 
   it("rejects an invalid file before contacting the upload API", async () => {

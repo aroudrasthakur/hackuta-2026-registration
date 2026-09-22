@@ -36,50 +36,52 @@ export function buildOtpEmailContent(code: string) {
   };
 }
 
-export function buildApplicationConfirmationEmailContent(payload: {
-  firstName: string;
-  submittedAt: number;
-  profileUrl?: string;
-}) {
-  const greetingName = payload.firstName.trim() || "there";
-  const submitted = new Date(payload.submittedAt).toLocaleString("en-US", {
+const HACKUTA_WEBSITE_URL = "https://hackuta.com";
+
+function formatApplicationSubmittedAt(submittedAt: number) {
+  return new Date(submittedAt).toLocaleString("en-US", {
     dateStyle: "long",
     timeStyle: "short",
     timeZone: "America/Chicago",
   });
+}
+
+export function buildApplicationConfirmationEmailContent(payload: {
+  applicantName: string;
+  submittedAt: number;
+  websiteUrl?: string;
+}) {
+  const greetingName = payload.applicantName.trim() || "there";
+  const submitted = formatApplicationSubmittedAt(payload.submittedAt);
+  const websiteUrl = payload.websiteUrl?.trim() || HACKUTA_WEBSITE_URL;
 
   const textLines = [
     `Hi ${greetingName},`,
     "",
-    "Thank you for applying to HackUTA 2026. We received your application.",
+    "Your HackUTA 2026 application has officially begun its journey! We're excited that you've taken the first step toward joining us for an unforgettable weekend of building, learning, and creating together.",
     "",
-    `Submitted: ${submitted}`,
+    `Application submitted: ${submitted}`,
     "",
-    "Our team will review your application and share updates by email as decisions are released.",
-    "You can return to your applicant profile anytime to check your status.",
-  ];
-
-  if (payload.profileUrl) {
-    textLines.push("", `View your profile: ${payload.profileUrl}`);
-  }
-
-  textLines.push(
+    "Our team will carefully review your application, and we'll email you as decisions are released. In the meantime, you can visit our website at:",
+    websiteUrl,
+    "",
+    "Thank you for wanting to be part of HackUTA 2026. We hope to welcome you aboard soon!",
+    "",
+    "With excitement,",
+    "The HackUTA Team",
     "",
     "If you did not submit this application, please contact hello@hackuta.org.",
-  );
-
-  const profileLink = payload.profileUrl
-    ? `<p><a href="${escapeHtml(payload.profileUrl)}">View your applicant profile</a></p>`
-    : "";
+  ];
 
   const html = `<!DOCTYPE html>
 <html lang="en">
 <body style="font-family: sans-serif; color: #1a3a52; line-height: 1.5;">
   <p>Hi ${escapeHtml(greetingName)},</p>
-  <p>Thank you for applying to <strong>HackUTA 2026</strong>. We received your application.</p>
-  <p><strong>Submitted:</strong> ${escapeHtml(submitted)}</p>
-  <p>Our team will review your application and share updates by email as decisions are released. You can return to your applicant profile anytime to check your status.</p>
-  ${profileLink}
+  <p>Your <strong>HackUTA 2026</strong> application has officially begun its journey! We're excited that you've taken the first step toward joining us for an unforgettable weekend of building, learning, and creating together.</p>
+  <p><strong>Application submitted:</strong> ${escapeHtml(submitted)}</p>
+  <p>Our team will carefully review your application, and we'll email you as decisions are released. In the meantime, you can visit our website at: <a href="${escapeHtml(websiteUrl)}">${escapeHtml(websiteUrl)}</a>.</p>
+  <p>Thank you for wanting to be part of HackUTA 2026. We hope to welcome you aboard soon!</p>
+  <p>With excitement,<br />The HackUTA Team</p>
   <p>If you did not submit this application, please contact <a href="mailto:hello@hackuta.org">hello@hackuta.org</a>.</p>
 </body>
 </html>`;

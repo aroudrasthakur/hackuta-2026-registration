@@ -197,6 +197,7 @@ async function upsertRegistration(
   await ctx.scheduler.runAfter(0, sendApplicationConfirmationEmailRef, {
     email: verifiedEmail,
     firstName: data.firstName,
+    lastName: data.lastName,
     submittedAt,
   });
 

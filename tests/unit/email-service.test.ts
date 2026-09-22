@@ -5,18 +5,33 @@ import {
 } from "../../convex/email/templates";
 
 describe("buildApplicationConfirmationEmailContent", () => {
-  it("confirms receipt and includes profile link when available", () => {
+  it("uses the journey template with applicant name and submission time", () => {
     const content = buildApplicationConfirmationEmailContent({
-      firstName: "Sam",
-      submittedAt: Date.parse("2026-11-01T12:00:00.000Z"),
-      profileUrl: "http://127.0.0.1:5273/profile",
+      applicantName: "Aroudra Syamantak",
+      submittedAt: Date.parse("2026-09-21T22:06:00.000Z"),
     });
 
     expect(content.subject).toBe("HackUTA 2026 application received");
-    expect(content.text).toContain("Hi Sam");
-    expect(content.text).toContain("received your application");
-    expect(content.text).toContain("http://127.0.0.1:5273/profile");
-    expect(content.html).toContain("View your applicant profile");
+    expect(content.text).toContain("Hi Aroudra Syamantak,");
+    expect(content.text).toContain("officially begun its journey");
+    expect(content.text).toContain("Application submitted: September 21, 2026");
+    expect(content.text).toContain("https://hackuta.com");
+    expect(content.text).toContain("With excitement,");
+    expect(content.text).toContain("The HackUTA Team");
+    expect(content.text).not.toContain("profile");
+    expect(content.html).not.toContain("applicant profile");
+    expect(content.html).toContain("https://hackuta.com");
+  });
+
+  it("allows overriding the marketing website URL", () => {
+    const content = buildApplicationConfirmationEmailContent({
+      applicantName: "Sam Test",
+      submittedAt: Date.parse("2026-11-01T12:00:00.000Z"),
+      websiteUrl: "https://example.com",
+    });
+
+    expect(content.text).toContain("https://example.com");
+    expect(content.html).toContain('href="https://example.com"');
   });
 });
 

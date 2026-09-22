@@ -48,7 +48,9 @@ async function upsertLegacyUser(
       .first();
 
     if (emailOwner && (!existing || emailOwner._id !== existing._id)) {
-      throw new Error("That email address is already associated with another user.");
+      throw new Error(
+        "That email address is already associated with another account. Sign in with that email or contact us for help.",
+      );
     }
   }
 
@@ -91,7 +93,9 @@ async function patchAuthenticatedUser(
       .first();
 
     if (emailOwner && emailOwner._id !== userId) {
-      throw new Error("That email address is already associated with another user.");
+      throw new Error(
+        "That email address is already associated with another account. Sign in with that email or contact us for help.",
+      );
     }
   }
 

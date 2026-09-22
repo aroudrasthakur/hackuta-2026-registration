@@ -103,6 +103,7 @@ export const INITIAL_FORM: ApplicationFormData = {
 /** Maps validation keys to DOM ids used for focus management. */
 export const FIELD_FOCUS_IDS: Partial<Record<FieldName, string>> = {
   firstHackathon: "firstHackathon-yes",
+  resume: "resume-upload",
   codeOfConductAgreed: "codeOfConductAgreed",
   mlhDataSharingConsent: "mlhDataSharingConsent",
 };

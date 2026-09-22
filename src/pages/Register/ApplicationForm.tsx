@@ -8,7 +8,11 @@ import {
 import { useSessionAuth } from "../../hooks/useSessionAuth";
 import { OdysseyButton } from "../../components/OdysseyButton";
 import { useApplicantRouting } from "../../hooks/useApplicantRouting";
-import { inputClass, labelClass, legendClass } from "./components/formFieldStyles";
+import {
+  inputClass,
+  labelClass,
+  legendClass,
+} from "./components/formFieldStyles";
 import {
   DIETARY_OPTIONS,
   FIELD_LIMITS,
@@ -25,10 +29,7 @@ import {
 import { FieldError, SelectField, TextField } from "./components/FormFields";
 import { CustomCheckbox, CustomRadio } from "./components/CustomCheckbox";
 import { ResumeUpload } from "./components/ResumeUpload";
-import {
-  fieldClass,
-  fieldsetErrorClass,
-} from "./components/formFieldStyles";
+import { fieldClass, fieldsetErrorClass } from "./components/formFieldStyles";
 import {
   discardResumeUpload,
   submitRegistration,
@@ -41,6 +42,11 @@ import type {
 } from "../../../shared/registration/types";
 import { INITIAL_FORM } from "../../../shared/registration/types";
 import { resumeFileKey } from "../../../shared/registration/resume";
+import {
+  isResumeFieldMessage,
+  mapConvexErrorToUserMessage,
+  SIGN_IN_REQUIRED_MESSAGE,
+} from "../../../shared/registration/submitErrors";
 import {
   focusFirstInvalidField,
   toggleValue,
@@ -107,7 +113,7 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
     event.preventDefault();
     if (submitting) return;
     if (!isAuthenticated && !routing.isAuthenticated) {
-      setSubmitError("Please sign in to submit your application.");
+      setSubmitError(SIGN_IN_REQUIRED_MESSAGE);
       return;
     }
 
@@ -132,8 +138,15 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
           session = resumeUpload.session;
         } else {
           await discardPendingResume();
-          session = await uploadResume(form.resume);
-          setResumeUpload({ fileKey, session });
+          try {
+            session = await uploadResume(form.resume);
+            setResumeUpload({ fileKey, session });
+          } catch (err) {
+            const message = mapConvexErrorToUserMessage(err);
+            setErrors((prev) => ({ ...prev, resume: message }));
+            focusFirstInvalidField({ resume: message });
+            return;
+          }
         }
       } else {
         await discardPendingResume();
@@ -144,7 +157,13 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
       onSubmitted();
     } catch (err) {
       console.error("Registration submission failed", err);
-      setSubmitError("We couldn't submit your application. Please try again.");
+      const message = mapConvexErrorToUserMessage(err);
+      if (isResumeFieldMessage(message)) {
+        setErrors((prev) => ({ ...prev, resume: message }));
+        focusFirstInvalidField({ resume: message });
+      } else {
+        setSubmitError(message);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -155,7 +174,9 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
       {routing.verifiedEmail ? (
         <div className="rounded-lg border-2 border-(--sand) bg-white px-4 py-3">
           <p className={legendClass}>Verified email</p>
-          <p className={`${inputClass} mt-1 border-0 bg-transparent px-0 py-0 text-(--ink)`}>
+          <p
+            className={`${inputClass} mt-1 border-0 bg-transparent px-0 py-0 text-(--ink)`}
+          >
             {routing.verifiedEmail}
           </p>
         </div>
@@ -287,14 +308,14 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
         </div>
       </section>
 
-      {/* Academic & Demographics Section */}
+      {/* Demographics Section */}
       <section className="space-y-6">
         <h3 className="flex items-center gap-2 text-base font-semibold text-(--ocean)">
           <span
             className="inline-block h-1 w-8 bg-(--ocean)"
             aria-hidden="true"
           ></span>
-          Academic & Demographics
+          Demographics
         </h3>
 
         <SelectField
@@ -656,8 +677,9 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
               id="mlhDataSharingConsent"
               label={
                 <>
-                  I authorize HackUTA to share my registration information with Major League Hacking for
-                  event administration, ranking, and MLH administration in-line with the{" "}
+                  I authorize HackUTA to share my registration information with
+                  Major League Hacking for event administration, ranking, and
+                  MLH administration in-line with the{" "}
                   <a
                     href={MLH_PRIVACY_POLICY_URL}
                     target="_blank"

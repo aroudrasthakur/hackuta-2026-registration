@@ -16,14 +16,8 @@ export type HackathonTimelineSource = {
 export function resolveHackathonTimelineSource(
   hackathon: HackathonTimelineSource | null | undefined,
 ): HackathonTimelineSource {
-  if (!hackathon) {
-    return HACKATHON_SCHEDULE;
-  }
-
   return {
-    registrationOpensAt: hackathon.registrationOpensAt,
-    registrationClosesAt: hackathon.registrationClosesAt,
-    decisionsReleasedAt: hackathon.decisionsReleasedAt ?? null,
-    startsAt: hackathon.startsAt,
+    ...HACKATHON_SCHEDULE,
+    decisionsReleasedAt: hackathon?.decisionsReleasedAt ?? null,
   };
 }

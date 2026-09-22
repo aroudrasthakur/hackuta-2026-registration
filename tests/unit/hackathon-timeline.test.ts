@@ -32,6 +32,9 @@ describe("buildHackathonTimeline", () => {
   });
 
   it("uses the canonical schedule constants", () => {
+    expect(HACKATHON_SCHEDULE.registrationOpensAt).toBe(
+      Date.parse("2026-09-21T00:00:00-05:00"),
+    );
     expect(HACKATHON_SCHEDULE.startsAt).toBe(Date.parse("2026-11-14T09:00:00-06:00"));
   });
 });

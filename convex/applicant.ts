@@ -12,7 +12,10 @@ import {
   projectApplicantAnswers,
   writeApplication,
 } from "./lib/applications";
-import { HACKATHON_SCHEDULE } from "../shared/hackathon/schedule";
+import {
+  HACKATHON_SCHEDULE,
+  resolveHackathonTimelineSource,
+} from "../shared/hackathon/schedule";
 import { buildHackathonTimeline } from "../shared/hackathon/timeline";
 
 async function findLegacyApplications(
@@ -145,16 +148,8 @@ export const getMyApplicantDashboard = query({
 
     const resumeStatus: "none" | "attached" = application?.resumeStorageId ? "attached" : "none";
     const applicantAnswers = application ? projectApplicantAnswers(application) : null;
-    const timeline = buildHackathonTimeline(
-      hackathon
-        ? {
-            registrationOpensAt: hackathon.registrationOpensAt,
-            registrationClosesAt: hackathon.registrationClosesAt,
-            decisionsReleasedAt: hackathon.decisionsReleasedAt,
-            startsAt: hackathon.startsAt,
-          }
-        : HACKATHON_SCHEDULE,
-    );
+    const timelineSource = resolveHackathonTimelineSource(hackathon);
+    const timeline = buildHackathonTimeline(timelineSource);
 
     return {
       profile: {
@@ -176,11 +171,11 @@ export const getMyApplicantDashboard = query({
       hackathon: hackathon
         ? {
             name: hackathon.name,
-            startsAt: hackathon.startsAt,
-            endsAt: hackathon.endsAt,
-            registrationOpensAt: hackathon.registrationOpensAt,
-            registrationClosesAt: hackathon.registrationClosesAt,
-            decisionsReleasedAt: hackathon.decisionsReleasedAt ?? null,
+            startsAt: timelineSource.startsAt,
+            endsAt: HACKATHON_SCHEDULE.endsAt,
+            registrationOpensAt: timelineSource.registrationOpensAt,
+            registrationClosesAt: timelineSource.registrationClosesAt,
+            decisionsReleasedAt: timelineSource.decisionsReleasedAt ?? null,
           }
         : null,
     };

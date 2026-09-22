@@ -14,6 +14,32 @@ const HACKATHON_SEEDS = {
   },
 } as const;
 
+function hackathonScheduleOutOfSync(hackathon: {
+  registrationOpensAt: number;
+  registrationClosesAt: number;
+  startsAt: number;
+  endsAt: number;
+}) {
+  return (
+    hackathon.registrationOpensAt !== HACKATHON_SCHEDULE.registrationOpensAt
+    || hackathon.registrationClosesAt !== HACKATHON_SCHEDULE.registrationClosesAt
+    || hackathon.startsAt !== HACKATHON_SCHEDULE.startsAt
+    || hackathon.endsAt !== HACKATHON_SCHEDULE.endsAt
+  );
+}
+
+export async function syncHackathonScheduleFromCanonical(
+  ctx: GenericMutationCtx<DataModelFromSchemaDefinition<typeof schema>>,
+  hackathon: NonNullable<Awaited<ReturnType<typeof ensureHackathon>>>,
+) {
+  if (!hackathonScheduleOutOfSync(hackathon)) {
+    return hackathon;
+  }
+
+  await ctx.db.patch(hackathon._id, HACKATHON_SCHEDULE);
+  return { ...hackathon, ...HACKATHON_SCHEDULE };
+}
+
 export async function ensureHackathon(
   ctx: DbCtx,
   slug: string,
@@ -22,7 +48,12 @@ export async function ensureHackathon(
     .query("hackathons")
     .withIndex("by_slug", (q) => q.eq("slug", slug))
     .first();
-  if (existing) return existing;
+  if (existing) {
+    if ("runMutation" in ctx) {
+      return syncHackathonScheduleFromCanonical(ctx, existing);
+    }
+    return existing;
+  }
 
   const seed = HACKATHON_SEEDS[slug as keyof typeof HACKATHON_SEEDS];
   if (!seed || !("runMutation" in ctx)) {

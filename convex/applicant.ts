@@ -1,7 +1,10 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { HACKATHON_ID } from "../shared/registration/constants";
-import { resolveAuthenticatedUser } from "./authenticatedUser";
+import {
+  ensureApplicantUserOnSubmit,
+  tryResolveAuthenticatedUser,
+} from "./authenticatedUser";
 import { normalizeEmail } from "./lib/normalizeEmail";
 import {
   findUsersByApplicationEmail,
@@ -13,7 +16,7 @@ import { HACKATHON_SCHEDULE } from "../shared/hackathon/schedule";
 import { buildHackathonTimeline } from "../shared/hackathon/timeline";
 
 async function findLegacyApplications(
-  ctx: Parameters<typeof resolveAuthenticatedUser>[0],
+  ctx: Parameters<typeof tryResolveAuthenticatedUser>[0],
   hackathonId: string,
   email: string,
 ) {
@@ -27,13 +30,18 @@ export const claimLegacyRegistrationIfEligible = mutation({
   },
   handler: async (ctx, { hackathonId = HACKATHON_ID }) => {
     try {
-      const user = await resolveAuthenticatedUser(ctx);
-      const verifiedEmail = normalizeEmail(user.email);
+      const identity = await ctx.auth.getUserIdentity();
+      if (!identity) {
+        return { claimed: false as const, reason: "error" as const };
+      }
+
+      const verifiedEmail = normalizeEmail(identity.email);
       if (!verifiedEmail) {
         return { claimed: false as const, reason: "no_verified_email" as const };
       }
 
-      if (getApplication(user, hackathonId)) {
+      const existingUser = await tryResolveAuthenticatedUser(ctx);
+      if (existingUser && getApplication(existingUser, hackathonId)) {
         return { claimed: false as const, reason: "already_owned" as const };
       }
 
@@ -54,6 +62,7 @@ export const claimLegacyRegistrationIfEligible = mutation({
         return { claimed: false as const, reason: "none_found" as const };
       }
 
+      const user = existingUser ?? (await ensureApplicantUserOnSubmit(ctx));
       const now = Date.now();
       await writeApplication(ctx, user._id, {
         ...legacyApplication,
@@ -98,16 +107,17 @@ export const getApplicantRoutingState = query({
       };
     }
 
-    const user = await resolveAuthenticatedUser(ctx);
-    const application = getApplication(user, hackathonId);
+    const user = await tryResolveAuthenticatedUser(ctx);
+    const application = user ? getApplication(user, hackathonId) : null;
+    const verifiedEmail = normalizeEmail(user?.email ?? identity.email);
 
     const hasSubmittedRegistration =
       application !== null &&
-      application.status !== "draft";
+      application.status === "submitted";
 
     return {
       authenticated: true as const,
-      verifiedEmail: normalizeEmail(user.email) ?? null,
+      verifiedEmail: verifiedEmail ?? null,
       hasRegistration: application !== null,
       registrationStatus: application?.status ?? null,
       hasSubmittedRegistration,
@@ -120,8 +130,13 @@ export const getMyApplicantDashboard = query({
     hackathonId: v.optional(v.string()),
   },
   handler: async (ctx, { hackathonId = HACKATHON_ID }) => {
-    const user = await resolveAuthenticatedUser(ctx);
-    const application = getApplication(user, hackathonId);
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Authentication required.");
+    }
+
+    const user = await tryResolveAuthenticatedUser(ctx);
+    const application = user ? getApplication(user, hackathonId) : null;
 
     const hackathon = await ctx.db
       .query("hackathons")
@@ -143,10 +158,10 @@ export const getMyApplicantDashboard = query({
 
     return {
       profile: {
-        displayName: user.displayName ?? null,
-        verifiedEmail: normalizeEmail(user.email) ?? null,
+        displayName: user?.displayName ?? identity.name ?? null,
+        verifiedEmail: normalizeEmail(user?.email ?? identity.email) ?? null,
       },
-      registration: application
+      registration: application && user
         ? {
             id: user._id,
             status: application.status,

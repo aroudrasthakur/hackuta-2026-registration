@@ -1,7 +1,7 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { HACKATHON_ID } from "../shared/registration/constants";
-import { resolveAuthenticatedUser } from "./authenticatedUser";
+import { resolveAuthenticatedUser, tryResolveAuthenticatedUser } from "./authenticatedUser";
 import { isRegistrationAdmin } from "./registrationSecurity";
 import { getApplication } from "./lib/applications";
 
@@ -27,7 +27,12 @@ export const getCurrentUser = query({
 export const getMyApplication = query({
   args: { hackathonId: v.optional(v.string()) },
   handler: async (ctx, { hackathonId = HACKATHON_ID }) => {
-    const user = await resolveAuthenticatedUser(ctx);
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Authentication required.");
+    }
+    const user = await tryResolveAuthenticatedUser(ctx);
+    if (!user) return null;
     return getApplication(user, hackathonId);
   },
 });
@@ -49,7 +54,11 @@ export const getApplicationsByHackathon = query({
       .collect();
 
     const results = users
-      .filter((user) => user.applications?.hackathonId === hackathonId)
+      .filter(
+        (user) =>
+          user.applications?.hackathonId === hackathonId &&
+          user.applications.status === "submitted",
+      )
       .map((user) => ({
         userId: user._id,
         email: user.email ?? user.applications?.email ?? null,

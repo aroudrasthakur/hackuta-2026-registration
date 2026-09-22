@@ -19,9 +19,9 @@ if (!hackathon) {
   throw new Error("The deployed hackuta-2026 hackathon record was not found.");
 }
 
-const user = await client.mutation("registrations:syncUser", {});
-if (!user.ok || !user.userId) {
-  throw new Error("Authenticated user synchronization failed.");
+const routing = await client.query("applicant:getApplicantRoutingState", {});
+if (!routing?.authenticated) {
+  throw new Error("Authenticated routing check failed.");
 }
 
-console.log(`Convex deployment verified for ${hackathon.slug}; user ${user.userId} synchronized.`);
+console.log(`Convex deployment verified for ${hackathon.slug}.`);

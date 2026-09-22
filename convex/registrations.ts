@@ -6,7 +6,7 @@ import type schema from "./schema";
 import { validateRegistrationPayload } from "../shared/registration/validation";
 import type { RegistrationPayload } from "../shared/registration/types";
 import { MAX_RESUME_BYTES } from "../shared/registration/resume";
-import { resolveAuthenticatedUser, resolveAuthenticatedUserId } from "./authenticatedUser";
+import { ensureApplicantUserOnSubmit } from "./authenticatedUser";
 import { normalizeEmail } from "./lib/normalizeEmail";
 import { ensureHackathon } from "./hackathons";
 import {
@@ -106,10 +106,9 @@ export const recordVerifiedResumeUpload = internalMutation({
 async function upsertRegistration(
   ctx: MutationCtx,
   data: RegistrationPayload,
-  status: "draft" | "submitted",
   resumeUploadToken?: string,
 ) {
-  const user = await resolveAuthenticatedUser(ctx, {
+  const user = await ensureApplicantUserOnSubmit(ctx, {
     displayName: `${data.firstName} ${data.lastName}`,
   });
   const userId = user._id;
@@ -123,7 +122,7 @@ async function upsertRegistration(
 
   const existing = getApplication(user, hackathonId);
 
-  if (status === "submitted" && existing?.status === "submitted") {
+  if (existing?.status === "submitted") {
     throw new Error("You have already submitted an application.");
   }
   const resumeStorageId = rawStorageId
@@ -173,11 +172,11 @@ async function upsertRegistration(
     }
   }
 
-  const submittedAt = status === "submitted" ? Date.now() : undefined;
+  const submittedAt = Date.now();
   const previousResume = existing?.resumeStorageId;
   const application = {
     hackathonId,
-    status,
+    status: "submitted" as const,
     eligibilityStatus: existing?.eligibilityStatus ?? ("unreviewed" as const),
     submittedAt,
     reviewedAt: existing?.reviewedAt,
@@ -195,13 +194,11 @@ async function upsertRegistration(
     await ctx.storage.delete(previousResume);
   }
 
-  if (status === "submitted" && submittedAt !== undefined) {
-    await ctx.scheduler.runAfter(0, sendApplicationConfirmationEmailRef, {
-      email: verifiedEmail,
-      firstName: data.firstName,
-      submittedAt,
-    });
-  }
+  await ctx.scheduler.runAfter(0, sendApplicationConfirmationEmailRef, {
+    email: verifiedEmail,
+    firstName: data.firstName,
+    submittedAt,
+  });
 
   return {
     registrationId: userId,
@@ -224,19 +221,13 @@ const registrationArgs = {
 export const register = mutation({
   args: registrationArgs,
   handler: async (ctx, { data, resumeUploadToken }) =>
-    upsertRegistration(ctx, parseRegistrationData(data), "submitted", resumeUploadToken),
+    upsertRegistration(ctx, parseRegistrationData(data), resumeUploadToken),
 });
 
 export const submitRegistration = mutation({
   args: registrationArgs,
   handler: async (ctx, { data, resumeUploadToken }) =>
-    upsertRegistration(ctx, parseRegistrationData(data), "submitted", resumeUploadToken),
-});
-
-export const saveDraft = mutation({
-  args: registrationArgs,
-  handler: async (ctx, { data, resumeUploadToken }) =>
-    upsertRegistration(ctx, parseRegistrationData(data), "draft", resumeUploadToken),
+    upsertRegistration(ctx, parseRegistrationData(data), resumeUploadToken),
 });
 
 export const deleteResumeUpload = mutation({
@@ -291,12 +282,3 @@ export const cleanupExpiredResumeUploads = internalMutation({
   },
 });
 
-export const syncUser = mutation({
-  args: {
-    displayName: v.optional(v.string()),
-  },
-  handler: async (ctx, { displayName }) => {
-    const userId = await resolveAuthenticatedUserId(ctx, { displayName });
-    return { userId, ok: true as const };
-  },
-});

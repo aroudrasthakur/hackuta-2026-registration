@@ -5,9 +5,10 @@ import { normalizeEmail } from "./lib/normalizeEmail";
 
 type QueryCtx = GenericQueryCtx<DataModelFromSchemaDefinition<typeof schema>>;
 type MutationCtx = GenericMutationCtx<DataModelFromSchemaDefinition<typeof schema>>;
+type AuthCtx = QueryCtx | MutationCtx;
 
 async function findLegacyUser(
-  ctx: QueryCtx | MutationCtx,
+  ctx: AuthCtx,
   identityKey: string,
   authSubject: string | undefined,
 ) {
@@ -103,8 +104,25 @@ async function patchAuthenticatedUser(
   });
 }
 
-export async function resolveAuthenticatedUser(
-  ctx: QueryCtx | MutationCtx,
+/** Read-only lookup — never creates app profile rows. */
+export async function tryResolveAuthenticatedUser(ctx: AuthCtx) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    return null;
+  }
+
+  const authUserId = await getAuthUserId(ctx);
+  if (authUserId) {
+    const authUser = await ctx.db.get(authUserId);
+    if (authUser) return authUser;
+  }
+
+  return findLegacyUser(ctx, identity.tokenIdentifier, identity.subject);
+}
+
+/** Ensures the applicant profile exists when saving a submitted registration. */
+export async function ensureApplicantUserOnSubmit(
+  ctx: MutationCtx,
   profile: { displayName?: string } = {},
 ) {
   const identity = await ctx.auth.getUserIdentity();
@@ -115,46 +133,41 @@ export async function resolveAuthenticatedUser(
   const verifiedEmail = normalizeEmail(identity.email);
   const displayName = identity.name ?? profile.displayName;
   const authUserId = await getAuthUserId(ctx);
-  const authUser = authUserId ? await ctx.db.get(authUserId) : null;
 
-  if (authUser) {
-    if ("scheduler" in ctx) {
+  if (authUserId) {
+    const authUser = await ctx.db.get(authUserId);
+    if (authUser) {
       await patchAuthenticatedUser(
         ctx,
-        authUserId!,
+        authUserId,
         identity.tokenIdentifier,
         verifiedEmail,
         displayName,
         identity.subject,
       );
-      const updatedUser = await ctx.db.get(authUserId!);
+      const updatedUser = await ctx.db.get(authUserId);
       if (updatedUser) return updatedUser;
     }
-    return authUser;
   }
 
-  if ("scheduler" in ctx) {
-    const legacyUserId = await upsertLegacyUser(
-      ctx,
-      identity.tokenIdentifier,
-      verifiedEmail,
-      displayName,
-      identity.subject,
-    );
-    const user = await ctx.db.get(legacyUserId);
-    if (user) return user;
-  } else {
-    const user = await findLegacyUser(ctx, identity.tokenIdentifier, identity.subject);
-    if (user) return user;
+  const legacyUserId = await upsertLegacyUser(
+    ctx,
+    identity.tokenIdentifier,
+    verifiedEmail,
+    displayName,
+    identity.subject,
+  );
+  const user = await ctx.db.get(legacyUserId);
+  if (!user) {
+    throw new Error("Applicant profile could not be created.");
   }
-
-  throw new Error("Authenticated user has not been synchronized.");
+  return user;
 }
 
-export async function resolveAuthenticatedUserId(
-  ctx: MutationCtx,
-  profile: { displayName?: string } = {},
-) {
-  const user = await resolveAuthenticatedUser(ctx, profile);
-  return user._id;
+export async function resolveAuthenticatedUser(ctx: AuthCtx) {
+  const user = await tryResolveAuthenticatedUser(ctx);
+  if (!user) {
+    throw new Error("Authenticated user has not been synchronized.");
+  }
+  return user;
 }

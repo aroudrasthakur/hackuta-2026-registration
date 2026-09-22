@@ -22,11 +22,6 @@ export const claimLegacyRegistrationRef = makeFunctionReference<
   { hackathonId?: string }
 >("applicant:claimLegacyRegistrationIfEligible");
 
-export const syncUserRef = makeFunctionReference<
-  "mutation",
-  { displayName?: string }
->("registrations:syncUser");
-
 export const getOtpSendCooldownRef = makeFunctionReference<
   "mutation",
   { email: string },

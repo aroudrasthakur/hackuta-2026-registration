@@ -142,11 +142,7 @@ Validates the registration payload (shared Zod schema), binds a resume via uploa
 
 `submitRegistration` is an alias with the same handler.
 
-### `registrations:saveDraft`
-
-**Auth:** required
-
-Same validation and resume flow as `register`, but saves status `draft`. Not wired in the current frontend.
+Creates the applicant profile and application on first submit. Sign-in alone does not write to the app `users` table (aside from the minimal Convex Auth session record).
 
 ### `registrations:deleteResumeUpload`
 
@@ -156,16 +152,6 @@ Discards an unconsumed resume upload session and deletes orphaned storage.
 
 ```typescript
 { uploadToken: string }
-```
-
-### `registrations:syncUser`
-
-**Auth:** required
-
-Upserts the Convex Auth user into the app `users` table. Called on sign-in via `useAuthenticatedUserSync`.
-
-```typescript
-{ displayName?: string }
 ```
 
 ### `applicant:claimLegacyRegistrationIfEligible`
@@ -380,7 +366,6 @@ Defined in `convex/crons.ts`.
 | Sign-in OTP send/verify | `auth:signIn` |
 | Sign-out | `auth:signOut` |
 | OTP cooldown labels | `rateLimits:getOtpSendCooldown` |
-| Post sign-in sync | `registrations:syncUser` |
 | Legacy claim | `applicant:claimLegacyRegistrationIfEligible` |
 | Route guards / `/` redirect | `applicant:getApplicantRoutingState` |
 | Profile page | `applicant:getMyApplicantDashboard` |

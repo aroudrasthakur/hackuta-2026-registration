@@ -1,10 +1,15 @@
-import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
-import type { DataModelFromSchemaDefinition } from "convex/server";
+import type {
+  DataModelFromSchemaDefinition,
+  DocumentByName,
+  GenericMutationCtx,
+  GenericQueryCtx,
+} from "convex/server";
 import type schema from "./schema";
 import { HACKATHON_SCHEDULE } from "../shared/hackathon/schedule";
 
-type DbCtx = GenericQueryCtx<DataModelFromSchemaDefinition<typeof schema>>
-  | GenericMutationCtx<DataModelFromSchemaDefinition<typeof schema>>;
+type DataModel = DataModelFromSchemaDefinition<typeof schema>;
+type HackathonDoc = DocumentByName<DataModel, "hackathons">;
+type DbCtx = GenericQueryCtx<DataModel> | GenericMutationCtx<DataModel>;
 
 const HACKATHON_SEEDS = {
   "hackuta-2026": {
@@ -29,9 +34,9 @@ function hackathonScheduleOutOfSync(hackathon: {
 }
 
 export async function syncHackathonScheduleFromCanonical(
-  ctx: GenericMutationCtx<DataModelFromSchemaDefinition<typeof schema>>,
-  hackathon: NonNullable<Awaited<ReturnType<typeof ensureHackathon>>>,
-) {
+  ctx: GenericMutationCtx<DataModel>,
+  hackathon: HackathonDoc,
+): Promise<HackathonDoc> {
   if (!hackathonScheduleOutOfSync(hackathon)) {
     return hackathon;
   }
@@ -43,7 +48,7 @@ export async function syncHackathonScheduleFromCanonical(
 export async function ensureHackathon(
   ctx: DbCtx,
   slug: string,
-) {
+): Promise<HackathonDoc> {
   const existing = await ctx.db
     .query("hackathons")
     .withIndex("by_slug", (q) => q.eq("slug", slug))

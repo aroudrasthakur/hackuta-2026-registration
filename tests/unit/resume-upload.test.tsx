@@ -63,7 +63,6 @@ describe("ResumeUpload", () => {
       await user.upload(input, file);
       expect(mockOnChange).toHaveBeenCalled();
     } else {
-      // If upload interface isn't available in test, just verify structure
       expect(screen.getByText("Resume (optional)")).toBeInTheDocument();
     }
   });

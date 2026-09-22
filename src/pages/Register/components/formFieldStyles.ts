@@ -7,7 +7,6 @@ export const labelClass =
   "flex w-full min-w-0 flex-col gap-1.5 text-sm font-medium text-(--ink)";
 export const legendClass = "font-semibold text-(--ink)";
 
-/** Legend spacing for checkbox/radio fieldsets. */
 export const fieldsetLegendClass = `${legendClass} mb-5 block w-full`;
 
 export const checkboxFieldsetClass = "flex flex-col gap-6 text-sm";

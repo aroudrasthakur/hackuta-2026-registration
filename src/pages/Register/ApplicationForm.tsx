@@ -33,11 +33,11 @@ import {
   MLH_CODE_OF_CONDUCT_URL,
   MLH_PRIVACY_POLICY_URL,
   MLH_SCHOOLS,
+  MLH_TEXAS_SCHOOLS,
   RACE_ETHNICITY_OPTIONS,
   TSHIRT_SIZES,
 } from "./constants";
 import { FieldError, SelectField, TextField } from "./components/FormFields";
-import { MLH_TEXAS_SCHOOLS } from "../../../shared/registration/mlhTexasSchools";
 import { SearchableSelect } from "./components/SearchableSelect";
 import { CustomCheckbox, CustomRadio } from "./components/CustomCheckbox";
 import { ResumeUpload } from "./components/ResumeUpload";
@@ -191,7 +191,6 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
         </div>
       ) : null}
 
-      {/* Header */}
       <div className="border-b-2 border-(--sand) pb-6">
         <h2 className="font-(family-name:--font-display) text-2xl text-(--ink)">
           Tell us about yourself
@@ -205,7 +204,6 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
         </p>
       </div>
 
-      {/* Personal Information Section */}
       <section className="space-y-6">
         <h3 className="flex items-center gap-2 text-base font-semibold text-(--ocean)">
           <span
@@ -360,7 +358,6 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
         </div>
       </section>
 
-      {/* Demographics Section */}
       <section className="space-y-6">
         <h3 className="flex items-center gap-2 text-base font-semibold text-(--ocean)">
           <span
@@ -439,7 +436,6 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
         </fieldset>
       </section>
 
-      {/* Event Preferences Section */}
       <section className="space-y-6">
         <h3 className="flex items-center gap-2 text-base font-semibold text-(--ocean)">
           <span
@@ -546,7 +542,6 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
         </fieldset>
       </section>
 
-      {/* Additional Information Section */}
       <section className="space-y-6">
         <h3 className="flex items-center gap-2 text-base font-semibold text-(--ocean)">
           <span
@@ -661,7 +656,6 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
         </div>
       </section>
 
-      {/* Emergency Contact Section */}
       <section className="space-y-6">
         <h3 className="flex items-center gap-2 text-base font-semibold text-(--ocean)">
           <span
@@ -699,7 +693,6 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
         </div>
       </section>
 
-      {/* Agreements Section */}
       <section className="space-y-4">
         <h3 className="flex items-center gap-2 text-base font-semibold text-(--ocean)">
           <span
@@ -797,7 +790,6 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
         </div>
       </section>
 
-      {/* Error Summary and Submit */}
       {Object.keys(errors).length > 0 && (
         <div
           role="alert"

@@ -19,7 +19,6 @@ export function CustomCheckbox({ label, id, className = "", ...props }: CustomCh
           {...props}
         />
         <div className="w-5 h-5 rounded border-2 border-(--sand) bg-white transition-all peer-checked:bg-(--ocean) peer-checked:border-(--ocean) peer-focus-visible:ring-2 peer-focus-visible:ring-(--ocean)/30 peer-focus-visible:ring-offset-2 flex items-center justify-center">
-          {/* Checkmark icon */}
           <svg
             className="w-3 h-3 text-white opacity-0 peer-checked:opacity-100 transition-opacity"
             viewBox="0 0 12 10"
@@ -64,7 +63,6 @@ export function CustomRadio({ label, id, name, className = "", ...props }: Custo
           {...props}
         />
         <div className="w-5 h-5 rounded-full border-2 border-(--sand) bg-white transition-all peer-checked:border-(--ocean) peer-focus-visible:ring-2 peer-focus-visible:ring-(--ocean)/30 peer-focus-visible:ring-offset-2 flex items-center justify-center">
-          {/* Inner dot */}
           <div className="w-2.5 h-2.5 rounded-full bg-(--ocean) opacity-0 peer-checked:opacity-100 transition-opacity scale-0 peer-checked:scale-100" />
         </div>
       </div>

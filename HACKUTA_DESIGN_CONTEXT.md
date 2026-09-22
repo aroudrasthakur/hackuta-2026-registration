@@ -111,9 +111,7 @@ Keep animations subtle and purposeful:
 - `OdysseyButton`: Primary CTA button with pottery-themed styling
 - `Logo`: HackUTA logo with variants (dark/light, header/decorative)
 - `Ship`: Decorative ship illustration
-- `ThemeArt`: Background decorative elements
 - `OliveBranch`: Success state decoration
-- `CoastCliff`: Optional decorative framing elements
 
 ## Reference files from landing
 
@@ -129,7 +127,7 @@ src/
 │   ├── art/              # Decorative SVG components
 │   │   ├── Logo.tsx
 │   │   ├── Ship.tsx
-│   │   ├── ThemeArt.tsx
+│   │   ├── OliveBranch.tsx
 │   │   └── ...
 │   ├── OdysseyButton.tsx # Themed button component
 │   └── AuthBootstrap.tsx # Auth wrapper

@@ -45,7 +45,6 @@ describe("useSessionAuth", () => {
       wrapper: createWrapper(true),
     });
 
-    // Mock auth loads quickly, so isLoading might be false
     expect(result.current.isLoading).toBeDefined();
     expect(result.current.isAuthenticated).toBe(false);
   });

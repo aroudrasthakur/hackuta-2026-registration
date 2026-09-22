@@ -146,7 +146,6 @@ See [docs/API.md](docs/API.md#rate-limits) for server-side enforcement details.
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | cPanel SMTP |
 | `EMAIL_FROM` | From address for outbound mail |
 | `CONTACT_EMAIL_TO` | Inbox for contact form submissions |
-| `HACKUTA_WEBSITE_URL` | Link used in confirmation emails (dev: `http://localhost:5173`) |
 | `REGISTRATION_ALLOW_LOCAL_DEV_ORIGINS` | Dev only — allow `localhost:5273` resume uploads |
 
 **Do not** set SMTP or JWT values as `VITE_*` — they belong only on the Convex deployment.

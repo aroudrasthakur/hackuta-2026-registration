@@ -71,6 +71,20 @@ describe("validateApplicationForm", () => {
     expect(result.success).toBe(false);
   });
 
+  it("requires country of residence with a friendly message", () => {
+    const form = validRegistrationForm();
+    form.countryOfResidence = "";
+
+    const result = validateApplicationForm(form);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.countryOfResidence).toBe(
+        "Please select your country of residence.",
+      );
+    }
+  });
+
   it("rejects schools that are not on the MLH list", () => {
     const form = validRegistrationForm();
     form.school = "UT Arlington" as typeof form.school;

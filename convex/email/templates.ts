@@ -49,11 +49,10 @@ function formatApplicationSubmittedAt(submittedAt: number) {
 export function buildApplicationConfirmationEmailContent(payload: {
   applicantName: string;
   submittedAt: number;
-  websiteUrl?: string;
 }) {
   const greetingName = payload.applicantName.trim() || "there";
   const submitted = formatApplicationSubmittedAt(payload.submittedAt);
-  const websiteUrl = payload.websiteUrl?.trim() || HACKUTA_WEBSITE_URL;
+  const websiteUrl = HACKUTA_WEBSITE_URL;
 
   const textLines = [
     `Hi ${greetingName},`,

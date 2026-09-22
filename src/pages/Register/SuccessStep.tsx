@@ -17,7 +17,6 @@ export function SuccessStep() {
       role="status"
       aria-live="polite"
     >
-      {/* Decorative olive branch */}
       <div className="w-24 text-(--ocean) opacity-70" aria-hidden="true">
         <OliveBranch />
       </div>
@@ -43,7 +42,6 @@ export function SuccessStep() {
         </div>
       </div>
 
-      {/* Decorative ship */}
       <div className="my-4 w-40 text-(--ink) opacity-30" aria-hidden="true">
         <Ship tone="ink" rowing={true} />
       </div>

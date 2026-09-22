@@ -99,7 +99,6 @@ describe("SignInPage extended", () => {
       ).toBeInTheDocument();
     });
 
-    // Check if "different email" link exists instead of "back"
     expect(
       screen.getByRole("button", { name: /different email/i }),
     ).toBeInTheDocument();
@@ -148,7 +147,6 @@ describe("SignInPage extended", () => {
     await user.click(cells[0]!);
     await user.paste("123456");
 
-    // Code should be entered
     expect(cells[0]).toHaveValue("1");
     expect(cells[5]).toHaveValue("6");
   });
@@ -164,7 +162,6 @@ describe("SignInPage extended", () => {
     await user.click(cells[0]!);
     await user.keyboard("abc");
 
-    // Non-digits should be filtered
     expect(cells[0]).toHaveValue("");
   });
 
@@ -178,7 +175,6 @@ describe("SignInPage extended", () => {
     const cells = await screen.findAllByRole("textbox");
     await user.click(cells[0]!);
 
-    // Any interaction should work
     expect(cells[0]).toBeInTheDocument();
   });
 
@@ -199,7 +195,6 @@ describe("SignInPage extended", () => {
     await user.type(screen.getByLabelText(/^Email$/i), "test@example.com");
     await user.click(screen.getByRole("button", { name: "Send code" }));
 
-    // Component should handle pending state
     expect(
       screen.getByRole("heading", { name: "Check your email" }),
     ).toBeInTheDocument();

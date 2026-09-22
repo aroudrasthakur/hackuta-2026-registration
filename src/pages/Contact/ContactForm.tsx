@@ -2,7 +2,6 @@ import { useAction } from "convex/react";
 import { useState, type FormEvent } from "react";
 import { OdysseyButton } from "../../components/OdysseyButton";
 import { isMockApiEnabled } from "../../constants/mockAuth";
-import { useMockAuth } from "../../hooks/useMockAuth";
 import { submitContactMessageRef } from "../../convex/api";
 import { getOrCreateContactClientKey } from "../../../shared/contact/clientKey";
 import {
@@ -15,7 +14,6 @@ const GENERIC_ERROR = "We couldn't send your message. Please try again later.";
 
 export function ContactForm() {
   const submitContact = useAction(submitContactMessageRef);
-  const mockAuth = useMockAuth();
   const mockEnabled = isMockApiEnabled();
 
   const [name, setName] = useState("");
@@ -75,8 +73,6 @@ export function ContactForm() {
       setPending(false);
     }
   };
-
-  void mockAuth;
 
   return (
     <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-6">

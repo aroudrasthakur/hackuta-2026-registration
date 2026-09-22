@@ -107,7 +107,6 @@ export function SelectField({
           </option>
           {children}
         </select>
-        {/* Custom dropdown arrow */}
         <div
           className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
           aria-hidden="true"

@@ -13,12 +13,12 @@ import { isMockApiEnabled } from "../../constants/mockAuth";
 const USE_MOCK_API = isMockApiEnabled();
 
 function getConvexSiteUrl() {
-  const convexUrl = normalizeConvexUrl(import.meta.env.VITE_CONVEX_URL);
+  const derivedSiteUrl = normalizeConvexUrl(import.meta.env.VITE_CONVEX_URL)
+    ?.replace(".convex.cloud", ".convex.site");
   if (USE_MOCK_API) {
-    return convexUrl?.replace(".convex.cloud", ".convex.site");
+    return derivedSiteUrl;
   }
-  return normalizeConvexUrl(import.meta.env.VITE_CONVEX_SITE_URL)
-    || convexUrl?.replace(".convex.cloud", ".convex.site");
+  return normalizeConvexUrl(import.meta.env.VITE_CONVEX_SITE_URL) || derivedSiteUrl;
 }
 
 const registerRef = makeFunctionReference<"mutation">("registrations:register");

@@ -23,16 +23,6 @@ describe("buildApplicationConfirmationEmailContent", () => {
     expect(content.html).toContain("https://hackuta.com");
   });
 
-  it("allows overriding the marketing website URL", () => {
-    const content = buildApplicationConfirmationEmailContent({
-      applicantName: "Sam Test",
-      submittedAt: Date.parse("2026-11-01T12:00:00.000Z"),
-      websiteUrl: "https://example.com",
-    });
-
-    expect(content.text).toContain("https://example.com");
-    expect(content.html).toContain('href="https://example.com"');
-  });
 });
 
 describe("buildOtpEmailContent", () => {

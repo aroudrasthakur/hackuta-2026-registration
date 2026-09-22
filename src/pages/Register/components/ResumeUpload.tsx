@@ -76,7 +76,6 @@ export function ResumeUpload({ file, error, disabled, onChange, onError }: Resum
         Resume (optional)
       </label>
 
-      {/* Upload Area */}
       <div
         onDrop={handleDrop}
         onDragOver={handleDragOver}
@@ -114,9 +113,7 @@ export function ResumeUpload({ file, error, disabled, onChange, onError }: Resum
         />
 
         {file ? (
-          // File selected state
           <div className="flex flex-col items-center gap-3">
-            {/* PDF Icon */}
             <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-(--ocean)/10">
               <svg className="h-8 w-8 text-(--ocean)" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -148,9 +145,7 @@ export function ResumeUpload({ file, error, disabled, onChange, onError }: Resum
             </button>
           </div>
         ) : (
-          // Empty state
           <div className="flex flex-col items-center gap-3">
-            {/* Upload Icon */}
             <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-(--sand)">
               <svg className="h-8 w-8 text-(--ocean)" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -188,12 +183,10 @@ export function ResumeUpload({ file, error, disabled, onChange, onError }: Resum
         )}
       </div>
 
-      {/* Help text */}
       <p id="resume-help" className="text-xs text-(--mist)">
         Upload your resume as a PDF file. Maximum file size is 5 MB.
       </p>
 
-      {/* Error message */}
       <FieldError id="resume-error" message={error} />
     </div>
   );

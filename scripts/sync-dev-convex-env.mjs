@@ -30,7 +30,6 @@ const DEV_ONLY = {
   SITE_URL: "http://127.0.0.1:5273",
   REGISTRATION_ALLOWED_ORIGINS: "http://127.0.0.1:5273,http://localhost:5273",
   REGISTRATION_ALLOW_LOCAL_DEV_ORIGINS: "true",
-  HACKUTA_WEBSITE_URL: "http://localhost:5173",
 };
 
 function runConvex(args, { prod = false } = {}) {

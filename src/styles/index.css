@@ -878,15 +878,12 @@
   }
 }
 
-
-/* Custom checkbox and radio styles */
 input[type="checkbox"]:focus-visible,
 input[type="radio"]:focus-visible {
   outline: 2px solid var(--ocean);
   outline-offset: 4px;
 }
 
-/* Smooth transitions for form elements */
 select,
 input[type="text"],
 input[type="email"],

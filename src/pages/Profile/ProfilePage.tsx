@@ -1,14 +1,25 @@
 import type { ReactNode } from "react";
 import { useQuery } from "convex/react";
-import { useNavigate } from "react-router-dom";
 import { OdysseyButton } from "../../components/OdysseyButton";
 import { PageShell } from "../../components/PageShell";
+import { SignOutButton } from "../../components/SignOutButton";
 import { StormPageFrame } from "../../components/StormPageFrame";
 import { useMockAuth } from "../../hooks/useMockAuth";
 import { getMyApplicantDashboardRef } from "../../convex/api";
 import { getConvexClient } from "../../convex/client";
+import { resolveHackathonTimelineSource } from "../../../shared/hackathon/schedule";
+import { buildHackathonTimeline } from "../../../shared/hackathon/timeline";
 import { ApplicantTimeline } from "./ApplicantTimeline";
-import { useSessionAuth } from "../../hooks/useSessionAuth";
+import { ProfileField } from "./ProfileField";
+import { ProfileSection } from "./ProfileSection";
+import {
+  profileFieldGrid,
+  profileFieldStack,
+  profileMetaText,
+  profilePageSubtitle,
+  profilePageTitle,
+  profileStatusBadge,
+} from "./profileStyles";
 
 const PROFILE_SHELL = {
   title: "Your Journey",
@@ -26,24 +37,12 @@ function ProfilePageShell({ children }: { children: ReactNode }) {
 }
 
 export default function ProfilePage() {
-  const navigate = useNavigate();
-  const { signOut } = useSessionAuth();
   const mockAuth = useMockAuth();
   const client = getConvexClient();
   const dashboard = useQuery(
     getMyApplicantDashboardRef,
     client && !mockAuth.enabled ? {} : "skip",
   );
-
-  const handleSignOut = async () => {
-    if (mockAuth.enabled) {
-      mockAuth.signOut();
-      navigate("/sign-in", { replace: true });
-      return;
-    }
-    await signOut();
-    navigate("/sign-in", { replace: true });
-  };
 
   if (!mockAuth.enabled && dashboard === undefined) {
     return (
@@ -78,14 +77,7 @@ export default function ProfilePage() {
               },
             }
           : null,
-        timeline: [
-          {
-            id: "email-verified",
-            label: "Email verified",
-            timestamp: mockTimestamp,
-            complete: true,
-          },
-        ],
+        hackathon: null,
       }
     : dashboard;
 
@@ -100,108 +92,114 @@ export default function ProfilePage() {
   }
 
   const registration = profile.registration;
+  const timeline = buildHackathonTimeline(
+    resolveHackathonTimelineSource(profile.hackathon),
+  );
 
   return (
     <ProfilePageShell>
-      <div className="flex flex-col gap-8">
-        <div className="border-b-2 border-(--sand) pb-6">
-          <h2 className="font-(family-name:--font-display) text-2xl text-(--ink)">
-            Your application
-          </h2>
-          <p className="mt-3 text-sm leading-relaxed text-(--ocean)">
+      <div className="flex flex-col gap-10">
+        <header className="border-b-2 border-(--sand) pb-6">
+          <h2 className={profilePageTitle}>Your application</h2>
+          <p className={profilePageSubtitle}>
             Track your HackUTA 2026 registration status.
           </p>
-        </div>
+        </header>
 
-        <section className="space-y-3">
-          <h3 className="text-base font-semibold text-(--ocean)">Profile</h3>
-          <dl className="grid gap-2 text-sm">
-            <div>
-              <dt className="font-medium text-(--ink)">Verified email</dt>
-              <dd className="text-(--ocean)">{profile.profile.verifiedEmail ?? "—"}</dd>
-            </div>
+        <ProfileSection title="Profile">
+          <dl className={profileFieldStack}>
+            <ProfileField
+              label="Verified email"
+              value={profile.profile.verifiedEmail ?? "—"}
+            />
             {profile.profile.displayName ? (
-              <div>
-                <dt className="font-medium text-(--ink)">Name</dt>
-                <dd className="text-(--ocean)">{profile.profile.displayName}</dd>
-              </div>
+              <ProfileField label="Name" value={profile.profile.displayName} />
             ) : null}
           </dl>
-        </section>
+        </ProfileSection>
 
         {!registration ? (
-          <section className="rounded-lg border-2 border-dashed border-(--sand) p-6 text-sm text-(--ocean)">
-            <p>You haven&apos;t started an application yet.</p>
-            <div className="mt-4">
+          <section className="rounded-lg border-2 border-dashed border-(--sand) p-6">
+            <p className={profileMetaText}>You haven&apos;t started an application yet.</p>
+            <div className="mt-4 flex justify-center">
               <OdysseyButton href="/register">Start application</OdysseyButton>
             </div>
           </section>
         ) : (
           <>
-            <section className="space-y-3">
-              <h3 className="text-base font-semibold text-(--ocean)">Application status</h3>
-              <p className="text-sm capitalize text-(--ink)">{registration.status.replace("-", " ")}</p>
-              {registration.submittedAt ? (
-                <p className="text-sm text-(--ocean)">
-                  Submitted {new Date(registration.submittedAt).toLocaleString()}
+            <ProfileSection title="Application status">
+              <div className="space-y-4">
+                <p>
+                  <span className={profileStatusBadge}>
+                    {registration.status.replace("-", " ")}
+                  </span>
                 </p>
-              ) : (
-                <div className="space-y-3">
-                  <p className="text-sm text-(--ocean)">Your application is incomplete.</p>
-                  <OdysseyButton href="/register">Continue application</OdysseyButton>
-                </div>
-              )}
-              <p className="text-sm text-(--ocean)">
-                Resume: {registration.resumeStatus === "attached" ? "Uploaded" : "Not uploaded"}
-              </p>
-            </section>
+                {registration.submittedAt ? (
+                  <dl className={profileFieldStack}>
+                    <ProfileField
+                      label="Submitted"
+                      value={new Date(registration.submittedAt).toLocaleString()}
+                    />
+                    <ProfileField
+                      label="Resume"
+                      value={
+                        registration.resumeStatus === "attached"
+                          ? "Uploaded"
+                          : "Not uploaded"
+                      }
+                    />
+                  </dl>
+                ) : (
+                  <div className="space-y-3">
+                    <p className={profileMetaText}>Your application is incomplete.</p>
+                    <div className="flex justify-center">
+                      <OdysseyButton href="/register">Continue application</OdysseyButton>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </ProfileSection>
 
             {registration.answers ? (
-              <section className="space-y-3">
-                <h3 className="text-base font-semibold text-(--ocean)">Submitted details</h3>
-                <dl className="grid gap-2 text-sm sm:grid-cols-2">
+              <ProfileSection title="Submitted details">
+                <dl className={profileFieldGrid}>
                   {registration.answers.firstName ? (
-                    <div>
-                      <dt className="font-medium text-(--ink)">First name</dt>
-                      <dd className="text-(--ocean)">{registration.answers.firstName}</dd>
-                    </div>
+                    <ProfileField
+                      label="First name"
+                      value={registration.answers.firstName}
+                    />
                   ) : null}
                   {registration.answers.lastName ? (
-                    <div>
-                      <dt className="font-medium text-(--ink)">Last name</dt>
-                      <dd className="text-(--ocean)">{registration.answers.lastName}</dd>
-                    </div>
+                    <ProfileField
+                      label="Last name"
+                      value={registration.answers.lastName}
+                    />
                   ) : null}
                   {registration.answers.school ? (
-                    <div>
-                      <dt className="font-medium text-(--ink)">School</dt>
-                      <dd className="text-(--ocean)">{registration.answers.school}</dd>
-                    </div>
+                    <ProfileField label="School" value={registration.answers.school} />
                   ) : null}
                   {registration.answers.levelOfStudy ? (
-                    <div>
-                      <dt className="font-medium text-(--ink)">Level of study</dt>
-                      <dd className="text-(--ocean)">{registration.answers.levelOfStudy}</dd>
-                    </div>
+                    <ProfileField
+                      label="Level of study"
+                      value={registration.answers.levelOfStudy}
+                    />
                   ) : null}
                   {registration.answers.graduationYear ? (
-                    <div>
-                      <dt className="font-medium text-(--ink)">Graduation year</dt>
-                      <dd className="text-(--ocean)">{registration.answers.graduationYear}</dd>
-                    </div>
+                    <ProfileField
+                      label="Graduation year"
+                      value={registration.answers.graduationYear}
+                    />
                   ) : null}
                 </dl>
-              </section>
+              </ProfileSection>
             ) : null}
-
-            <ApplicantTimeline events={profile.timeline} />
           </>
         )}
 
+        <ApplicantTimeline events={timeline} />
+
         <div className="border-t-2 border-(--sand) pt-6">
-          <OdysseyButton type="button" onClick={() => void handleSignOut()}>
-            Sign out
-          </OdysseyButton>
+          <SignOutButton />
         </div>
       </div>
     </ProfilePageShell>

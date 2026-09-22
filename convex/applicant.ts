@@ -9,84 +9,8 @@ import {
   projectApplicantAnswers,
   writeApplication,
 } from "./lib/applications";
-
-type ApplicationStatus =
-  | "draft"
-  | "submitted"
-  | "accepted"
-  | "waitlisted"
-  | "rejected"
-  | "withdrawn";
-
-type TimelineEvent = {
-  id: string;
-  label: string;
-  timestamp: number | null;
-  complete: boolean;
-};
-
-function buildTimeline(application: {
-  status: ApplicationStatus;
-  submittedAt?: number;
-  reviewedAt?: number;
-  updatedAt: number;
-} | null, user: { emailVerificationTime?: number; updatedAt?: number; createdAt?: number }) {
-  const events: TimelineEvent[] = [];
-
-  const verifiedAt = user.emailVerificationTime ?? user.updatedAt ?? user.createdAt ?? null;
-  events.push({
-    id: "email-verified",
-    label: "Email verified",
-    timestamp: verifiedAt,
-    complete: verifiedAt !== null,
-  });
-
-  if (application) {
-    events.push({
-      id: "registration-started",
-      label: "Registration started",
-      timestamp: application.updatedAt,
-      complete: true,
-    });
-
-    if (application.submittedAt) {
-      events.push({
-        id: "application-submitted",
-        label: "Application submitted",
-        timestamp: application.submittedAt,
-        complete: true,
-      });
-    }
-
-    if (application.status === "submitted" && !application.reviewedAt) {
-      events.push({
-        id: "under-review",
-        label: "Under review",
-        timestamp: application.submittedAt ?? null,
-        complete: false,
-      });
-    }
-
-    if (application.reviewedAt) {
-      const statusLabels: Record<ApplicationStatus, string> = {
-        draft: "Draft saved",
-        submitted: "Application submitted",
-        accepted: "Accepted",
-        waitlisted: "Waitlisted",
-        rejected: "Declined",
-        withdrawn: "Withdrawn",
-      };
-      events.push({
-        id: `status-${application.status}`,
-        label: statusLabels[application.status],
-        timestamp: application.reviewedAt,
-        complete: true,
-      });
-    }
-  }
-
-  return events;
-}
+import { HACKATHON_SCHEDULE } from "../shared/hackathon/schedule";
+import { buildHackathonTimeline } from "../shared/hackathon/timeline";
 
 async function findLegacyApplications(
   ctx: Parameters<typeof resolveAuthenticatedUser>[0],
@@ -206,22 +130,16 @@ export const getMyApplicantDashboard = query({
 
     const resumeStatus: "none" | "attached" = application?.resumeStorageId ? "attached" : "none";
     const applicantAnswers = application ? projectApplicantAnswers(application) : null;
-    const timeline = buildTimeline(application, user);
-
-    if (hackathon) {
-      timeline.push({
-        id: "event-starts",
-        label: "Hackathon begins",
-        timestamp: hackathon.startsAt,
-        complete: Date.now() >= hackathon.startsAt,
-      });
-      timeline.push({
-        id: "event-ends",
-        label: "Hackathon ends",
-        timestamp: hackathon.endsAt,
-        complete: Date.now() >= hackathon.endsAt,
-      });
-    }
+    const timeline = buildHackathonTimeline(
+      hackathon
+        ? {
+            registrationOpensAt: hackathon.registrationOpensAt,
+            registrationClosesAt: hackathon.registrationClosesAt,
+            decisionsReleasedAt: hackathon.decisionsReleasedAt,
+            startsAt: hackathon.startsAt,
+          }
+        : HACKATHON_SCHEDULE,
+    );
 
     return {
       profile: {
@@ -247,6 +165,7 @@ export const getMyApplicantDashboard = query({
             endsAt: hackathon.endsAt,
             registrationOpensAt: hackathon.registrationOpensAt,
             registrationClosesAt: hackathon.registrationClosesAt,
+            decisionsReleasedAt: hackathon.decisionsReleasedAt ?? null,
           }
         : null,
     };

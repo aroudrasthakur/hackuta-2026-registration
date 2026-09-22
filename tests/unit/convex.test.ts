@@ -793,17 +793,28 @@ describe("convex applicant auth flows", () => {
         endsAt: now + 9 * 24 * 60 * 60 * 1000,
         registrationOpensAt: now - 30 * 24 * 60 * 60 * 1000,
         registrationClosesAt: now + 1 * 24 * 60 * 60 * 1000,
+        decisionsReleasedAt: now + 3 * 24 * 60 * 60 * 1000,
       });
     });
 
     const dashboard = await t.query("applicant:getMyApplicantDashboard", {}) as {
-      timeline: Array<{ id: string }>;
+      timeline: Array<{ id: string; label: string }>;
       hackathon: { name: string } | null;
     };
 
     expect(dashboard.hackathon?.name).toBe("HackUTA 2026");
-    expect(dashboard.timeline.some((event) => event.id === "event-starts")).toBe(true);
-    expect(dashboard.timeline.some((event) => event.id === "event-ends")).toBe(true);
+    expect(dashboard.timeline.map((event) => event.id)).toEqual([
+      "applications-open",
+      "application-deadline",
+      "decisions-out",
+      "hackathon-begins",
+    ]);
+    expect(dashboard.timeline.map((event) => event.label)).toEqual([
+      "Applications open",
+      "Deadline to apply",
+      "Decisions are out",
+      "Hackathon begins",
+    ]);
   });
 
   it("returns resume status as attached when resume exists", async () => {
@@ -822,30 +833,30 @@ describe("convex applicant auth flows", () => {
     });
   });
 
-  it("includes reviewed status labels in the applicant timeline", async () => {
+  it("marks past hackathon milestones complete in the applicant timeline", async () => {
     const t = await authTest();
-    await t.mutation("registrations:register", { data: validRegistrationData });
-    await drainScheduledFunctions(t);
-
+    const now = Date.now();
     await t.run(async (ctx) => {
-      const user = await ctx.db.query("users").first();
-      if (!user?.applications) {
-        throw new Error("Expected application");
-      }
-      await ctx.db.patch(user._id, {
-        applications: {
-          ...user.applications,
-          status: "accepted",
-          reviewedAt: Date.now(),
-        },
+      await ctx.db.insert("hackathons", {
+        slug: "hackuta-2026",
+        name: "HackUTA 2026",
+        startsAt: now + 14 * 24 * 60 * 60 * 1000,
+        endsAt: now + 16 * 24 * 60 * 60 * 1000,
+        registrationOpensAt: now - 10 * 24 * 60 * 60 * 1000,
+        registrationClosesAt: now + 2 * 24 * 60 * 60 * 1000,
+        decisionsReleasedAt: now + 7 * 24 * 60 * 60 * 1000,
       });
     });
 
     const dashboard = await t.query("applicant:getMyApplicantDashboard", {}) as {
-      timeline: Array<{ label: string }>;
+      timeline: Array<{ id: string; complete: boolean }>;
     };
 
-    expect(dashboard.timeline.some((event) => event.label === "Accepted")).toBe(true);
+    const applicationsOpen = dashboard.timeline.find((event) => event.id === "applications-open");
+    const hackathonBegins = dashboard.timeline.find((event) => event.id === "hackathon-begins");
+
+    expect(applicationsOpen?.complete).toBe(true);
+    expect(hackathonBegins?.complete).toBe(false);
   });
 
   it("returns no_verified_email when claiming legacy registration without email", async () => {

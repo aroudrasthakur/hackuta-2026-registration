@@ -34,6 +34,7 @@ export default defineSchema({
     endsAt: v.number(),
     registrationOpensAt: v.number(),
     registrationClosesAt: v.number(),
+    decisionsReleasedAt: v.optional(v.number()),
   }).index('by_slug', ['slug']),
 
   rateLimits: defineTable({

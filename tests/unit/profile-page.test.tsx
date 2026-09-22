@@ -85,6 +85,11 @@ describe("ProfilePage", () => {
     expect(screen.getByText("Sam Test")).toBeInTheDocument();
     expect(screen.getByText("UT Arlington")).toBeInTheDocument();
     expect(screen.getByText("submitted")).toBeInTheDocument();
+    expect(screen.getByText("Applications open")).toBeInTheDocument();
+    expect(screen.getByText("Deadline to apply")).toBeInTheDocument();
+    expect(screen.getByText("Decisions are out")).toBeInTheDocument();
+    expect(screen.getByText("TBD")).toBeInTheDocument();
+    expect(screen.getByText("Hackathon begins")).toBeInTheDocument();
   });
 
   it("shows start application when the applicant has not registered yet", () => {

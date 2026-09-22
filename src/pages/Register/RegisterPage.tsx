@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { PageShell } from "../../components/PageShell";
+import { SignOutButton } from "../../components/SignOutButton";
 import { StormPageFrame } from "../../components/StormPageFrame";
 import { ApplicationForm } from "./ApplicationForm";
 import { SuccessStep } from "./SuccessStep";
@@ -22,15 +23,18 @@ export default function RegisterPage() {
             }
           : {})}
         footer={
-          <p className="mt-8 text-center text-xs text-(--mist)">
-            Questions?{" "}
-            <Link
-              to="/contact"
-              className="text-(--ocean) underline decoration-1 underline-offset-2 transition-colors hover:text-(--ink)"
-            >
-              Contact us
-            </Link>
-          </p>
+          <div className="mt-8 flex flex-col items-center gap-4">
+            {step === "application" ? <SignOutButton /> : null}
+            <p className="text-center text-xs text-(--mist)">
+              Questions?{" "}
+              <Link
+                to="/contact"
+                className="text-(--ocean) underline decoration-1 underline-offset-2 transition-colors hover:text-(--ink)"
+              >
+                Contact us
+              </Link>
+            </p>
+          </div>
         }
       >
         {step === "application" ? (

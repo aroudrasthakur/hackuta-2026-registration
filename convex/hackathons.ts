@@ -1,6 +1,7 @@
 import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type { DataModelFromSchemaDefinition } from "convex/server";
 import type schema from "./schema";
+import { HACKATHON_SCHEDULE } from "../shared/hackathon/schedule";
 
 type DbCtx = GenericQueryCtx<DataModelFromSchemaDefinition<typeof schema>>
   | GenericMutationCtx<DataModelFromSchemaDefinition<typeof schema>>;
@@ -9,10 +10,7 @@ const HACKATHON_SEEDS = {
   "hackuta-2026": {
     slug: "hackuta-2026",
     name: "HackUTA 2026",
-    startsAt: Date.parse("2026-11-14T09:00:00-06:00"),
-    endsAt: Date.parse("2026-11-15T18:00:00-06:00"),
-    registrationOpensAt: Date.parse("2026-09-01T00:00:00-05:00"),
-    registrationClosesAt: Date.parse("2026-11-14T09:00:00-06:00"),
+    ...HACKATHON_SCHEDULE,
   },
 } as const;
 

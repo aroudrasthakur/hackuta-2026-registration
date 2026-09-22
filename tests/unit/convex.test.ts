@@ -508,10 +508,17 @@ describe("convex queries", () => {
 
   it("syncs stale hackathon schedule dates when seed runs again", async () => {
     const t = createTest() as unknown as ConvexTestClient;
-    const hackathonId = await t.mutation("seed:seedHackathon", {});
+    await t.mutation("seed:seedHackathon", {});
 
     await (t as unknown as TestInstance).run(async (ctx) => {
-      await ctx.db.patch(hackathonId, {
+      const hackathon = await ctx.db
+        .query("hackathons")
+        .withIndex("by_slug", (q) => q.eq("slug", "hackuta-2026"))
+        .first();
+      if (!hackathon) {
+        throw new Error("Hackathon seed missing.");
+      }
+      await ctx.db.patch(hackathon._id, {
         registrationOpensAt: Date.parse("2026-09-01T00:00:00-05:00"),
       });
     });

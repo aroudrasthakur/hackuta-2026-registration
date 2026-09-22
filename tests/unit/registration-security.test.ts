@@ -28,11 +28,23 @@ describe("registrationSecurity", () => {
   it("excludes local dev origins from production configuration", () => {
     vi.stubEnv("REGISTRATION_ALLOW_LOCAL_DEV_ORIGINS", "");
     vi.stubEnv("REGISTRATION_ALLOWED_ORIGINS", "https://register.hackuta.com");
-    vi.stubEnv("SITE_URL", "");
+    vi.stubEnv("SITE_URL", "https://register.hackuta.com");
     const allowed = getRegistrationAllowedOrigins();
     expect(allowed).toEqual(["https://register.hackuta.com"]);
     expect(isOriginAllowed("http://localhost:5273", allowed)).toBe(false);
     expect(isOriginAllowed("https://register.hackuta.com", allowed)).toBe(true);
+  });
+
+  it("ignores localhost entries on production even when misconfigured", () => {
+    vi.stubEnv("REGISTRATION_ALLOW_LOCAL_DEV_ORIGINS", "");
+    vi.stubEnv(
+      "REGISTRATION_ALLOWED_ORIGINS",
+      "https://register.hackuta.com,http://localhost:5273",
+    );
+    vi.stubEnv("SITE_URL", "http://127.0.0.1:5273");
+    const allowed = getRegistrationAllowedOrigins();
+    expect(allowed).toEqual(["https://register.hackuta.com"]);
+    expect(isOriginAllowed("http://localhost:5273", allowed)).toBe(false);
   });
 
   it("includes local dev origin variants from SITE_URL when local dev is enabled", () => {

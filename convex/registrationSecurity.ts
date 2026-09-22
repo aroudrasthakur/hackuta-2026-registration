@@ -9,6 +9,22 @@ function isLocalDevOriginsEnabled(): boolean {
   return value === "true" || value === "1" || value === "yes";
 }
 
+function isLocalRegistrationDevOrigin(origin: string): boolean {
+  try {
+    const { hostname } = new URL(origin);
+    return hostname === "localhost" || hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
+function addOriginIfAllowed(origins: Set<string>, origin: string) {
+  if (isLocalRegistrationDevOrigin(origin) && !isLocalDevOriginsEnabled()) {
+    return;
+  }
+  origins.add(origin);
+}
+
 function localDevOriginVariants(siteUrl: string): string[] {
   try {
     const url = new URL(siteUrl);
@@ -40,13 +56,13 @@ export function getRegistrationAllowedOrigins(): string[] {
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean)) {
-    origins.add(origin);
+    addOriginIfAllowed(origins, origin);
   }
 
   const siteUrl = process.env.SITE_URL?.trim();
   if (siteUrl) {
     for (const origin of localDevOriginVariants(siteUrl)) {
-      origins.add(origin);
+      addOriginIfAllowed(origins, origin);
     }
   }
 

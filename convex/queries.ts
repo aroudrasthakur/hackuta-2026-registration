@@ -48,7 +48,7 @@ export const getApplicationsByHackathon = query({
       .withIndex("by_application_status", (q) => q.eq("applications.hackathonId", hackathonId))
       .collect();
 
-    return users
+    const results = users
       .filter((user) => user.applications?.hackathonId === hackathonId)
       .map((user) => ({
         userId: user._id,
@@ -56,6 +56,18 @@ export const getApplicationsByHackathon = query({
         displayName: user.displayName ?? null,
         application: user.applications!,
       }));
+
+    console.log(
+      JSON.stringify({
+        event: "admin_applications_access",
+        identityKey: identity.tokenIdentifier,
+        hackathonId,
+        resultCount: results.length,
+        at: Date.now(),
+      }),
+    );
+
+    return results;
   },
 });
 

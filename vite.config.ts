@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import istanbul from 'vite-plugin-istanbul'
 import { contentSecurityPolicy } from './security/csp.ts'
+import { permissionsPolicy, referrerPolicy } from './security/headers.ts'
 
 const instrumentForCoverage = process.env.VITE_COVERAGE === 'true'
 
@@ -23,7 +24,11 @@ export default defineConfig({
   preview: {
     port: 4274,
     strictPort: true,
-    headers: { 'Content-Security-Policy': contentSecurityPolicy },
+    headers: {
+      'Content-Security-Policy': contentSecurityPolicy,
+      'Permissions-Policy': permissionsPolicy,
+      'Referrer-Policy': referrerPolicy,
+    },
   },
   build: { target: 'es2022' },
 })

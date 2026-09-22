@@ -106,9 +106,9 @@ Profile page payload: application summary, answers, resume status, timeline, hac
 
 ### `rateLimits:getOtpSendCooldown`
 
-**Auth:** none
+**Type:** mutation · **Auth:** none
 
-OTP resend cooldown for the sign-in UI.
+OTP resend cooldown for the sign-in UI. Lookup attempts are rate-limited server-side to reduce email enumeration.
 
 ```typescript
 { email: string }

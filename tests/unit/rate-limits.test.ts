@@ -6,15 +6,19 @@ import {
   OTP_RESEND_COOLDOWN_MS,
   OTP_SEND_MAX_PER_HOUR,
   CONTACT_FORM_MAX_PER_WINDOW,
+  CONTACT_FORM_EMAIL_MAX_PER_WINDOW,
+  OTP_STATUS_LOOKUP_MAX_PER_HOUR,
 } from "../../convex/rateLimits";
 import {
   CONTACT_FORM_BUCKET,
+  CONTACT_FORM_EMAIL_BUCKET,
   OTP_SEND_BUCKET,
+  OTP_STATUS_LOOKUP_BUCKET,
 } from "../../convex/lib/rateLimitBuckets";
 
 const modules = import.meta.glob("../../convex/**/*.ts", { eager: false });
 
-const getOtpSendCooldown = makeFunctionReference<"query">("rateLimits:getOtpSendCooldown");
+const getOtpSendCooldown = makeFunctionReference<"mutation">("rateLimits:getOtpSendCooldown");
 const assertOtpSendAllowed = makeFunctionReference<"mutation">("rateLimits:assertOtpSendAllowed");
 const recordOtpSend = makeFunctionReference<"mutation">("rateLimits:recordOtpSend");
 const assertContactSubmissionAllowed = makeFunctionReference<"mutation">(
@@ -37,7 +41,7 @@ describe("rateLimits", () => {
         createdAt: now - 15_000,
       });
 
-      const status = await ctx.runQuery(getOtpSendCooldown, { email });
+      const status = await ctx.runMutation(getOtpSendCooldown, { email });
       expect(status.hourlyLimitReached).toBe(false);
       expect(status.waitSeconds).toBeGreaterThan(0);
       expect(status.waitSeconds).toBeLessThanOrEqual(30);
@@ -161,11 +165,14 @@ describe("rateLimits", () => {
   it("records contact form submission", async () => {
     const test = convexTest(schema, modules);
     await test.run(async (ctx) => {
-      await ctx.runMutation(recordContactSubmission, { clientKey: "test-client" });
+      await ctx.runMutation(recordContactSubmission, {
+        clientKey: "test-client",
+        email: "contact@example.com",
+      });
       const submissions = await ctx.db.query("rateLimits").collect();
-      expect(submissions).toHaveLength(1);
-      expect(submissions[0]?.bucket).toBe(CONTACT_FORM_BUCKET);
-      expect(submissions[0]?.key).toBe("test-client");
+      expect(submissions).toHaveLength(2);
+      expect(submissions.some((row) => row.bucket === CONTACT_FORM_BUCKET && row.key === "test-client")).toBe(true);
+      expect(submissions.some((row) => row.bucket === CONTACT_FORM_EMAIL_BUCKET && row.key === "contact@example.com")).toBe(true);
     });
   });
 
@@ -215,6 +222,54 @@ describe("rateLimits", () => {
       await ctx.runMutation(recordOtpSend, { email: "Test@Example.COM" });
       const attempts = await ctx.db.query("rateLimits").collect();
       expect(attempts[0]?.key).toBe("test@example.com");
+    });
+  });
+
+  it("enforces contact form rate limit by email address", async () => {
+    const test = convexTest(schema, modules);
+    await test.run(async (ctx) => {
+      const email = "repeat@example.com";
+      const now = Date.now();
+
+      for (let i = 0; i < CONTACT_FORM_EMAIL_MAX_PER_WINDOW; i++) {
+        await ctx.db.insert("rateLimits", {
+          bucket: CONTACT_FORM_EMAIL_BUCKET,
+          key: email,
+          createdAt: now - (i * 1000),
+        });
+      }
+
+      await expect(
+        ctx.runMutation(assertContactSubmissionAllowed, {
+          clientKey: "fresh-client",
+          email,
+        }),
+      ).rejects.toThrow("Too many contact requests. Please try again later.");
+    });
+  });
+
+  it("returns neutral OTP cooldown status after lookup rate limit is exceeded", async () => {
+    const test = convexTest(schema, modules);
+    await test.run(async (ctx) => {
+      const email = "probe@example.com";
+      const now = Date.now();
+
+      await ctx.db.insert("rateLimits", {
+        bucket: OTP_SEND_BUCKET,
+        key: email,
+        createdAt: now - 15_000,
+      });
+
+      for (let i = 0; i < OTP_STATUS_LOOKUP_MAX_PER_HOUR; i++) {
+        await ctx.db.insert("rateLimits", {
+          bucket: OTP_STATUS_LOOKUP_BUCKET,
+          key: email,
+          createdAt: now - (i * 1000),
+        });
+      }
+
+      const status = await ctx.runMutation(getOtpSendCooldown, { email });
+      expect(status).toEqual({ waitSeconds: 0, hourlyLimitReached: false });
     });
   });
 });

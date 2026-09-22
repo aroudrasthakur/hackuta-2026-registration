@@ -4,7 +4,12 @@ import { OdysseyButton } from "../../components/OdysseyButton";
 import { isMockApiEnabled } from "../../constants/mockAuth";
 import { useMockAuth } from "../../hooks/useMockAuth";
 import { submitContactMessageRef } from "../../convex/api";
-import { fieldClass, labelClass, legendClass } from "../Register/components/formFieldStyles";
+import { getOrCreateContactClientKey } from "../../../shared/contact/clientKey";
+import {
+  fieldClass,
+  labelClass,
+  legendClass,
+} from "../Register/components/formFieldStyles";
 
 const GENERIC_ERROR = "We couldn't send your message. Please try again later.";
 
@@ -55,7 +60,7 @@ export function ContactForm() {
         subject,
         message,
         website,
-        clientKey: typeof crypto.randomUUID === "function" ? crypto.randomUUID() : "browser-client",
+        clientKey: getOrCreateContactClientKey(),
       });
       setSuccess("Thank you. Your message has been sent.");
       setName("");

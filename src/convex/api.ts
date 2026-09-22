@@ -28,7 +28,7 @@ export const syncUserRef = makeFunctionReference<
 >("registrations:syncUser");
 
 export const getOtpSendCooldownRef = makeFunctionReference<
-  "query",
+  "mutation",
   { email: string },
   { waitSeconds: number; hourlyLimitReached: boolean }
 >("rateLimits:getOtpSendCooldown");

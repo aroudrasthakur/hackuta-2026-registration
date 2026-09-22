@@ -60,7 +60,7 @@ export default function SignInPage() {
     }
 
     try {
-      return await client.query(getOtpSendCooldownRef, { email: normalized });
+      return await client.mutation(getOtpSendCooldownRef, { email: normalized });
     } catch {
       return { waitSeconds: 0, hourlyLimitReached: false };
     }

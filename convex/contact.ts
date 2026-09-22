@@ -46,6 +46,7 @@ export const submitContactMessage = action({
     try {
       await ctx.runMutation(assertContactSubmissionAllowedRef, {
         clientKey: rateKey,
+        email: validation.payload.email,
       });
       await ctx.runAction(sendContactEmailRef, {
         ...validation.payload,
@@ -53,6 +54,7 @@ export const submitContactMessage = action({
       });
       await ctx.runMutation(recordContactSubmissionRef, {
         clientKey: rateKey,
+        email: validation.payload.email,
       });
     } catch {
       throw new Error("We couldn't send your message. Please try again later.");

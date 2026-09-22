@@ -58,7 +58,6 @@ function createCapabilityToken() {
 
 async function clientAddress(
   ctx: Parameters<Parameters<typeof httpAction>[0]>[0],
-  request: Request,
 ) {
   try {
     const { ip } = await ctx.meta.getRequestMetadata();
@@ -66,8 +65,7 @@ async function clientAddress(
   } catch {
     // Older local test backends do not expose request metadata.
   }
-  const forwarded = request.headers.get("x-forwarded-for")?.split(",");
-  return forwarded?.[forwarded.length - 1]?.trim() ?? null;
+  return null;
 }
 
 const uploadResume = httpAction(async (ctx, request) => {
@@ -85,7 +83,7 @@ const uploadResume = httpAction(async (ctx, request) => {
 
   try {
     await ctx.runMutation(reserveResumeUploadRef, {
-      requestKey: await requestRateKey(await clientAddress(ctx, request)),
+      requestKey: await requestRateKey(await clientAddress(ctx)),
     });
   } catch {
     return response(request, { error: "Too many uploads. Please try again later." }, 429, origin);

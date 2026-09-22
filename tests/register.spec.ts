@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import { test, expect } from "./playwright-coverage";
 import { MIN_GRADUATION_YEAR } from "../shared/registration/constants";
 import { contentSecurityPolicy } from "../security/csp";
+import { permissionsPolicy, referrerPolicy } from "../security/headers";
 import { MOCK_OTP } from "../src/constants/mockAuth";
 import vercelConfig from "../vercel.json" with { type: "json" };
 
@@ -41,9 +42,14 @@ test.describe("registration", () => {
   test("submits a PDF resume with the application under the production CSP", async ({ page }) => {
     test.setTimeout(60_000);
 
-    const deployedCsp = vercelConfig.headers.flatMap((rule) => rule.headers)
-      .find((header) => header.key === "Content-Security-Policy")?.value;
-    expect(deployedCsp).toBe(contentSecurityPolicy);
+    const deployedHeaders = Object.fromEntries(
+      vercelConfig.headers
+        .flatMap((rule) => rule.headers)
+        .map((header) => [header.key, header.value]),
+    );
+    expect(deployedHeaders["Content-Security-Policy"]).toBe(contentSecurityPolicy);
+    expect(deployedHeaders["Permissions-Policy"]).toBe(permissionsPolicy);
+    expect(deployedHeaders["Referrer-Policy"]).toBe(referrerPolicy);
 
     const resume = Buffer.from("%PDF-1.7\nTest resume\n%%EOF");
 

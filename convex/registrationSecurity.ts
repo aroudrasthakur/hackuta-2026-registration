@@ -1,8 +1,13 @@
-/** Local Vite dev server origins — always allowed so prod Convex works with localhost frontends. */
+/** Local Vite dev server origins — allowed only when REGISTRATION_ALLOW_LOCAL_DEV_ORIGINS is set. */
 export const LOCAL_REGISTRATION_DEV_ORIGINS = [
   "http://127.0.0.1:5273",
   "http://localhost:5273",
 ] as const;
+
+function isLocalDevOriginsEnabled(): boolean {
+  const value = process.env.REGISTRATION_ALLOW_LOCAL_DEV_ORIGINS?.trim().toLowerCase();
+  return value === "true" || value === "1" || value === "yes";
+}
 
 function localDevOriginVariants(siteUrl: string): string[] {
   try {
@@ -23,7 +28,13 @@ function localDevOriginVariants(siteUrl: string): string[] {
 }
 
 export function getRegistrationAllowedOrigins(): string[] {
-  const origins = new Set<string>(LOCAL_REGISTRATION_DEV_ORIGINS);
+  const origins = new Set<string>();
+
+  if (isLocalDevOriginsEnabled()) {
+    for (const origin of LOCAL_REGISTRATION_DEV_ORIGINS) {
+      origins.add(origin);
+    }
+  }
 
   for (const origin of (process.env.REGISTRATION_ALLOWED_ORIGINS ?? "")
     .split(",")

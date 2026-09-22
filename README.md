@@ -6,6 +6,7 @@ This app deploys separately from the marketing landing page ([hackuta-2026-repos
 
 | Environment | Frontend | Convex |
 | --- | --- | --- |
+| Development | local / [127.0.0.1:5273](http://127.0.0.1:5273) | `standing-manatee-425` (dev deployment) |
 | Production | [register.hackuta.com](https://register.hackuta.com) | `brilliant-ostrich-892` (prod deployment) |
 | Local dev | `http://127.0.0.1:5273` | `npx convex dev` (personal dev deployment) |
 

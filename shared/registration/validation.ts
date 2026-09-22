@@ -1,5 +1,5 @@
 import type { ZodError } from "zod";
-import { HACKATHON_ID } from "./constants";
+import { HACKATHON_ID, MAJOR_OTHER_OPTION } from "./constants";
 import { registrationPayloadSchema } from "./schema";
 import { validateResume } from "./resume";
 import type {
@@ -23,6 +23,13 @@ function zodErrorToFieldErrors(error: ZodError): FieldErrors {
   return errors;
 }
 
+function resolveMajor(form: ApplicationFormData) {
+  if (form.major === MAJOR_OTHER_OPTION) {
+    return form.otherMajor.trim();
+  }
+  return form.major;
+}
+
 function buildRegistrationCandidate(form: ApplicationFormData) {
   return {
     firstName: form.firstName,
@@ -30,14 +37,16 @@ function buildRegistrationCandidate(form: ApplicationFormData) {
     phone: form.phone,
     age: form.age.trim() === "" ? Number.NaN : Number(form.age.trim()),
     school: form.school,
+    countryOfResidence: form.countryOfResidence || undefined,
     levelOfStudy: form.levelOfStudy || undefined,
-    major: form.major,
+    major: resolveMajor(form),
     graduationYear:
       form.graduationYear.trim() === ""
         ? Number.NaN
         : Number(form.graduationYear.trim()),
     gender: form.gender || undefined,
     raceEthnicity: form.raceEthnicity,
+    otherRaceEthnicity: form.otherRaceEthnicity,
     dietaryRestrictions: form.dietaryRestrictions,
     otherDietary: form.otherDietary,
     tshirtSize: form.tshirtSize || undefined,
@@ -56,15 +65,28 @@ function buildRegistrationCandidate(form: ApplicationFormData) {
   };
 }
 
+function collectClientFieldErrors(form: ApplicationFormData): FieldErrors {
+  const errors: FieldErrors = {};
+
+  if (form.major === MAJOR_OTHER_OPTION && !form.otherMajor.trim()) {
+    errors.otherMajor = "Please describe your major or field of study.";
+  }
+
+  return errors;
+}
+
 export function validateApplicationForm(form: ApplicationFormData):
   | { success: true; payload: RegistrationPayload }
   | { success: false; errors: FieldErrors } {
+  const clientErrors = collectClientFieldErrors(form);
   const result = registrationPayloadSchema.safeParse(buildRegistrationCandidate(form));
   const errors = result.success ? {} : zodErrorToFieldErrors(result.error);
+  Object.assign(errors, clientErrors);
+
   const resumeError = form.resume ? validateResume(form.resume) : undefined;
   if (resumeError) errors.resume = resumeError;
 
-  if (!result.success || resumeError) {
+  if (!result.success || resumeError || Object.keys(clientErrors).length > 0) {
     return { success: false, errors };
   }
 

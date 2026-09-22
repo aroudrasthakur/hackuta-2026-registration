@@ -1,42 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
-import { MIN_GRADUATION_YEAR } from "../../shared/registration/constants";
-import {
-  isValidHttpUrl,
-  isValidPhone,
-  registrationPayloadSchema,
-} from "../../shared/registration/schema";
-import { INITIAL_FORM, type ApplicationFormData } from "../../shared/registration/types";
+import { registrationPayloadSchema } from "../../shared/registration/schema";
+import { INITIAL_FORM } from "../../shared/registration/types";
 import {
   focusFirstInvalidField,
   toggleValue,
   validateApplicationForm,
   validateRegistrationPayload,
 } from "../../shared/registration/validation";
-
-function validForm(): ApplicationFormData {
-  return {
-    ...INITIAL_FORM,
-    firstName: "Sam",
-    lastName: "Test",
-    phone: "5551234567",
-    age: "20",
-    school: "UT Arlington",
-    levelOfStudy: "Undergraduate - Junior",
-    major: "Computer Science",
-    graduationYear: String(MIN_GRADUATION_YEAR),
-    gender: "Male",
-    tshirtSize: "M",
-    firstHackathon: true,
-    hearAbout: "Discord",
-    emergencyContactName: "Jane Test",
-    emergencyContactPhone: "5559876543",
-    codeOfConductAgreed: true,
-    mlhDataSharingConsent: true,
-  };
-}
+import { validRegistrationForm } from "../fixtures/validRegistrationForm";
 
 function validPayloadFromForm() {
-  const result = validateApplicationForm(validForm());
+  const result = validateApplicationForm(validRegistrationForm());
   if (!result.success) {
     throw new Error("Test setup failed: valid form did not validate");
   }
@@ -50,7 +24,7 @@ describe("validateApplicationForm", () => {
     new File([], "resume.pdf", { type: "application/pdf" }),
     new File(["x".repeat(5 * 1024 * 1024 + 1)], "resume.pdf", { type: "application/pdf" }),
   ])("blocks submission of invalid resume files", (resume) => {
-    const result = validateApplicationForm({ ...validForm(), resume });
+    const result = validateApplicationForm({ ...validRegistrationForm(), resume });
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errors.resume).toBeTruthy();
   });
@@ -66,7 +40,7 @@ describe("validateApplicationForm", () => {
   });
 
   it("accepts a valid form and trims whitespace", () => {
-    const form = validForm();
+    const form = validRegistrationForm();
     form.firstName = "  Sam  ";
     form.lastName = "  Test  ";
 
@@ -80,7 +54,7 @@ describe("validateApplicationForm", () => {
   });
 
   it("rejects invalid age values", () => {
-    const form = validForm();
+    const form = validRegistrationForm();
     form.age = "-500";
 
     const result = validateApplicationForm(form);
@@ -89,7 +63,7 @@ describe("validateApplicationForm", () => {
   });
 
   it("rejects invalid graduation years", () => {
-    const form = validForm();
+    const form = validRegistrationForm();
     form.graduationYear = "9000";
 
     const result = validateApplicationForm(form);
@@ -97,21 +71,33 @@ describe("validateApplicationForm", () => {
     expect(result.success).toBe(false);
   });
 
-  it("requires a description when dietary Other is selected", () => {
-    const form = validForm();
-    form.dietaryRestrictions = ["Other"];
+  it("rejects schools that are not on the MLH list", () => {
+    const form = validRegistrationForm();
+    form.school = "UT Arlington" as typeof form.school;
+
+    const result = validateApplicationForm(form);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.school).toContain("school");
+    }
+  });
+
+  it("requires a description when dietary Allergies is selected", () => {
+    const form = validRegistrationForm();
+    form.dietaryRestrictions = ["Allergies"];
     form.otherDietary = "";
 
     const result = validateApplicationForm(form);
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.errors.otherDietary).toBe("Please describe your dietary restriction.");
+      expect(result.errors.otherDietary).toBe("Please describe your food allergies.");
     }
   });
 
   it("rejects invalid optional URLs", () => {
-    const form = validForm();
+    const form = validRegistrationForm();
     form.github = "http://???";
 
     const result = validateApplicationForm(form);
@@ -170,23 +156,27 @@ describe("validateRegistrationPayload", () => {
 });
 
 describe("isValidHttpUrl", () => {
-  it("accepts http and https URLs", () => {
+  it("accepts http and https URLs", async () => {
+    const { isValidHttpUrl } = await import("../../shared/registration/schema");
     expect(isValidHttpUrl("https://github.com/user")).toBe(true);
     expect(isValidHttpUrl("http://example.com")).toBe(true);
   });
 
-  it("rejects invalid and non-http URLs", () => {
+  it("rejects invalid and non-http URLs", async () => {
+    const { isValidHttpUrl } = await import("../../shared/registration/schema");
     expect(isValidHttpUrl("not-a-url")).toBe(false);
     expect(isValidHttpUrl("ftp://example.com")).toBe(false);
   });
 });
 
 describe("isValidPhone", () => {
-  it("accepts normalized phone numbers", () => {
+  it("accepts normalized phone numbers", async () => {
+    const { isValidPhone } = await import("../../shared/registration/schema");
     expect(isValidPhone("555-123-4567")).toBe(true);
   });
 
-  it("rejects too-short numbers", () => {
+  it("rejects too-short numbers", async () => {
+    const { isValidPhone } = await import("../../shared/registration/schema");
     expect(isValidPhone("123")).toBe(false);
   });
 });

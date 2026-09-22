@@ -24,11 +24,15 @@ async function fillApplicationForm(page: Page) {
   await page.getByLabel("Last name", { exact: false }).fill("Test");
   await page.getByLabel("Phone number", { exact: false }).fill("5551234567");
   await page.locator("#age").fill("20");
-  await page.getByLabel("School / university", { exact: false }).fill("UT Arlington");
-  await page.getByLabel("Level of study", { exact: false }).selectOption("Undergraduate - Junior");
-  await page.getByLabel("Major / field of study", { exact: false }).fill("Computer Science");
+  await page.locator("#school").fill("Texas at Arlington");
+  await page.getByRole("button", { name: "The University of Texas at Arlington" }).click();
+  await page.locator("#countryOfResidence").selectOption("United States of America");
+  await page.locator("#levelOfStudy").selectOption("Undergraduate University (3+ year)");
+  await page.locator("#major").selectOption(
+    "Computer science, computer engineering, or software engineering",
+  );
   await page.getByLabel("Expected graduation year", { exact: false }).fill(String(MIN_GRADUATION_YEAR));
-  await page.locator("#gender").selectOption("Male");
+  await page.locator("#gender").selectOption("Man");
   await page.getByLabel("T-shirt size", { exact: false }).selectOption("M");
   await page.getByLabel("Yes", { exact: true }).check();
   await page.getByLabel("How did you hear about HackUTA?", { exact: false }).selectOption("Discord");

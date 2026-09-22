@@ -71,8 +71,9 @@ export default function ProfilePage() {
               answers: {
                 firstName: "Sam",
                 lastName: "Test",
-                school: "UT Arlington",
-                levelOfStudy: "Undergraduate - Junior",
+                school: "The University of Texas at Arlington",
+                countryOfResidence: "United States of America",
+                levelOfStudy: "Undergraduate University (3+ year)",
                 graduationYear: 2026,
               },
             }
@@ -177,6 +178,12 @@ export default function ProfilePage() {
                   ) : null}
                   {registration.answers.school ? (
                     <ProfileField label="School" value={registration.answers.school} />
+                  ) : null}
+                  {registration.answers.countryOfResidence ? (
+                    <ProfileField
+                      label="Country of residence"
+                      value={registration.answers.countryOfResidence}
+                    />
                   ) : null}
                   {registration.answers.levelOfStudy ? (
                     <ProfileField

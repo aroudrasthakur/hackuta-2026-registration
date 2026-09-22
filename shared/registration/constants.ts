@@ -1,43 +1,74 @@
 export const LEVELS_OF_STUDY = [
-  "High school",
-  "Undergraduate - Freshman",
-  "Undergraduate - Sophomore",
-  "Undergraduate - Junior",
-  "Undergraduate - Senior",
-  "Graduate",
-  "PhD",
+  "Less than Secondary / High School",
+  "Secondary / High School",
+  "Undergraduate University (2 year - community college or similar)",
+  "Undergraduate University (3+ year)",
+  "Graduate University (Masters, Professional, Doctoral, etc)",
+  "Code School / Bootcamp",
+  "Other Vocational / Trade Program or Apprenticeship",
+  "Post Doctorate",
   "Other",
+  "I'm not currently a student",
+  "Prefer not to answer",
 ] as const;
 
 export const GENDERS = [
-  "Male",
-  "Female",
-  "Non-binary",
+  "Man",
+  "Woman",
+  "Non-Binary",
   "Prefer to self-describe",
-  "Prefer not to answer",
+  "Prefer Not to Answer",
 ] as const;
 
 export const RACE_ETHNICITY_OPTIONS = [
-  "American Indian or Alaska Native",
-  "Asian",
-  "Black or African American",
-  "Hispanic or Latino",
-  "Native Hawaiian or Other Pacific Islander",
+  "Asian Indian",
+  "Black or African",
+  "Chinese",
+  "Filipino",
+  "Guamanian or Chamorro",
+  "Hispanic / Latino / Spanish Origin",
+  "Japanese",
+  "Korean",
+  "Middle Eastern",
+  "Native American or Alaskan Native",
+  "Native Hawaiian",
+  "Samoan",
+  "Vietnamese",
   "White",
-  "Prefer not to answer",
-  "Other",
+  "Other Asian (Thai, Cambodian, etc)",
+  "Other Pacific Islander",
+  "Other (Please Specify)",
+  "Prefer Not to Answer",
 ] as const;
 
 export const DIETARY_OPTIONS = [
-  "None",
   "Vegetarian",
   "Vegan",
-  "Gluten-free",
-  "Halal",
+  "Celiac Disease",
+  "Allergies",
   "Kosher",
-  "Nut allergy",
-  "Other",
+  "Halal",
 ] as const;
+
+export const MAJORS = [
+  "Computer science, computer engineering, or software engineering",
+  "Another engineering discipline (such as civil, electrical, mechanical, etc.)",
+  "Information systems, information technology, or system administration",
+  "A natural science (such as biology, chemistry, physics, etc.)",
+  "Mathematics or statistics",
+  "Web development or web design",
+  "Business discipline (such as accounting, finance, marketing, etc.)",
+  "Humanities discipline (such as literature, history, philosophy, etc.)",
+  "Social science (such as anthropology, psychology, political science, etc.)",
+  "Fine arts or performing arts (such as graphic design, music, studio art, etc.)",
+  "Health science (such as nursing, pharmacy, radiology, etc.)",
+  "Other (please specify)",
+  "Undecided / No Declared Major",
+  "My school does not offer majors / primary areas of study",
+  "Prefer not to answer",
+] as const;
+
+export const MAJOR_OTHER_OPTION = "Other (please specify)" as const;
 
 export const TSHIRT_SIZES = ["XS", "S", "M", "L", "XL", "XXL"] as const;
 
@@ -59,6 +90,8 @@ export const FIELD_LIMITS = {
   url: 2048,
   accessibilityNeeds: 2000,
   otherDietary: 500,
+  otherMajor: 200,
+  otherRaceEthnicity: 200,
 } as const;
 
 const CURRENT_YEAR = new Date().getFullYear();

@@ -83,7 +83,7 @@ describe("ProfilePage", () => {
     expect(screen.getByRole("heading", { name: "Your Journey" })).toBeInTheDocument();
     expect(screen.getByText("applicant@example.com")).toBeInTheDocument();
     expect(screen.getByText("Sam Test")).toBeInTheDocument();
-    expect(screen.getByText("UT Arlington")).toBeInTheDocument();
+    expect(screen.getByText("The University of Texas at Arlington")).toBeInTheDocument();
     expect(screen.getByText("submitted")).toBeInTheDocument();
     expect(screen.getByText("Applications open")).toBeInTheDocument();
     expect(screen.getByText("Deadline to apply")).toBeInTheDocument();

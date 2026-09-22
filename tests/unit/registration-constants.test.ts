@@ -70,7 +70,7 @@ describe("registration constants", () => {
     it("has gender options", () => {
       expect(Array.isArray(GENDERS)).toBe(true);
       expect(GENDERS.length).toBeGreaterThan(0);
-      expect(GENDERS.includes("Male") || GENDERS.includes("Female")).toBe(true);
+      expect(GENDERS.includes("Man") || GENDERS.includes("Woman")).toBe(true);
     });
 
     it("has level of study options", () => {

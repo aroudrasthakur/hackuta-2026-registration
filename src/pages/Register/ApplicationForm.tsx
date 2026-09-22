@@ -9,27 +9,38 @@ import { useSessionAuth } from "../../hooks/useSessionAuth";
 import { OdysseyButton } from "../../components/OdysseyButton";
 import { useApplicantRouting } from "../../hooks/useApplicantRouting";
 import {
+  checkboxFieldsetClass,
+  checkboxGridClass,
+  fieldClass,
+  fieldsetErrorClass,
+  fieldsetLegendClass,
+  inlineRadioGroupClass,
   inputClass,
   labelClass,
   legendClass,
 } from "./components/formFieldStyles";
 import {
+  COUNTRIES_OF_RESIDENCE,
   DIETARY_OPTIONS,
   FIELD_LIMITS,
   GENDERS,
   HEAR_ABOUT_OPTIONS,
   LEVELS_OF_STUDY,
+  MAJOR_OTHER_OPTION,
+  MAJORS,
   MAX_GRADUATION_YEAR,
   MIN_GRADUATION_YEAR,
   MLH_CODE_OF_CONDUCT_URL,
   MLH_PRIVACY_POLICY_URL,
+  MLH_SCHOOLS,
   RACE_ETHNICITY_OPTIONS,
   TSHIRT_SIZES,
 } from "./constants";
 import { FieldError, SelectField, TextField } from "./components/FormFields";
+import { MLH_TEXAS_SCHOOLS } from "../../../shared/registration/mlhTexasSchools";
+import { SearchableSelect } from "./components/SearchableSelect";
 import { CustomCheckbox, CustomRadio } from "./components/CustomCheckbox";
 import { ResumeUpload } from "./components/ResumeUpload";
-import { fieldClass, fieldsetErrorClass } from "./components/formFieldStyles";
 import {
   discardResumeUpload,
   submitRegistration,
@@ -53,8 +64,6 @@ import {
   validateApplicationForm,
   type FieldErrors,
 } from "../../../shared/registration/validation";
-
-const fieldsetClass = "flex flex-col gap-4 text-sm";
 
 export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
   const [form, setForm] = useState<ApplicationFormData>(INITIAL_FORM);
@@ -253,16 +262,38 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
             autoComplete="off"
             error={errors.age}
           />
-          <TextField
+          <SearchableSelect
             id="school"
             label="School / university"
             required
+            placeholder="Search schools"
             value={form.school}
-            onChange={(e) => updateField("school", e.target.value)}
-            autoComplete="organization"
-            maxLength={FIELD_LIMITS.school}
+            options={MLH_SCHOOLS}
+            featuredOptions={MLH_TEXAS_SCHOOLS}
+            onChange={(value) =>
+              updateField("school", value as ApplicationFormData["school"])
+            }
             error={errors.school}
           />
+          <SelectField
+            id="countryOfResidence"
+            label="Country of residence"
+            required
+            value={form.countryOfResidence}
+            onChange={(e) =>
+              updateField(
+                "countryOfResidence",
+                e.target.value as ApplicationFormData["countryOfResidence"],
+              )
+            }
+            error={errors.countryOfResidence}
+          >
+            {COUNTRIES_OF_RESIDENCE.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </SelectField>
           <SelectField
             id="levelOfStudy"
             label="Level of study"
@@ -282,15 +313,36 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
               </option>
             ))}
           </SelectField>
-          <TextField
+          <SelectField
             id="major"
             label="Major / field of study"
             required
             value={form.major}
-            onChange={(e) => updateField("major", e.target.value)}
-            maxLength={FIELD_LIMITS.major}
+            onChange={(e) =>
+              updateField(
+                "major",
+                e.target.value as ApplicationFormData["major"],
+              )
+            }
             error={errors.major}
-          />
+          >
+            {MAJORS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </SelectField>
+          {form.major === MAJOR_OTHER_OPTION ? (
+            <TextField
+              id="otherMajor"
+              label="Describe your major / field of study"
+              required
+              value={form.otherMajor}
+              onChange={(e) => updateField("otherMajor", e.target.value)}
+              maxLength={FIELD_LIMITS.otherMajor}
+              error={errors.otherMajor}
+            />
+          ) : null}
           <TextField
             id="graduationYear"
             label="Expected graduation year"
@@ -338,11 +390,13 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
           ))}
         </SelectField>
 
-        <fieldset className={fieldsetClass}>
-          <legend className={legendClass}>
+        <fieldset
+          className={`${checkboxFieldsetClass} ${fieldsetErrorClass(!!errors.otherRaceEthnicity)}`}
+        >
+          <legend className={fieldsetLegendClass}>
             Race / ethnicity (select all that apply)
           </legend>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className={checkboxGridClass}>
             {RACE_ETHNICITY_OPTIONS.map((option) => (
               <CustomCheckbox
                 key={option}
@@ -358,6 +412,30 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
               />
             ))}
           </div>
+          {form.raceEthnicity.includes("Other (Please Specify)") ? (
+            <>
+              <input
+                id="otherRaceEthnicity"
+                value={form.otherRaceEthnicity}
+                onChange={(e) =>
+                  updateField("otherRaceEthnicity", e.target.value)
+                }
+                placeholder="Please specify your race or ethnicity"
+                aria-invalid={!!errors.otherRaceEthnicity}
+                aria-describedby={
+                  errors.otherRaceEthnicity
+                    ? "otherRaceEthnicity-error"
+                    : undefined
+                }
+                maxLength={FIELD_LIMITS.otherRaceEthnicity}
+                className={fieldClass(errors.otherRaceEthnicity)}
+              />
+              <FieldError
+                id="otherRaceEthnicity-error"
+                message={errors.otherRaceEthnicity}
+              />
+            </>
+          ) : null}
         </fieldset>
       </section>
 
@@ -372,12 +450,12 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
         </h3>
 
         <fieldset
-          className={`${fieldsetClass} ${fieldsetErrorClass(!!errors.otherDietary)}`}
+          className={`${checkboxFieldsetClass} ${fieldsetErrorClass(!!errors.otherDietary)}`}
         >
-          <legend className={legendClass}>
+          <legend className={fieldsetLegendClass}>
             Dietary restrictions (select all that apply)
           </legend>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className={checkboxGridClass}>
             {DIETARY_OPTIONS.map((option) => (
               <CustomCheckbox
                 key={option}
@@ -393,13 +471,13 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
               />
             ))}
           </div>
-          {form.dietaryRestrictions.includes("Other") && (
+          {form.dietaryRestrictions.includes("Allergies") ? (
             <>
               <input
                 id="otherDietary"
                 value={form.otherDietary}
                 onChange={(e) => updateField("otherDietary", e.target.value)}
-                placeholder="Please specify your dietary restrictions"
+                placeholder="Please describe your food allergies"
                 aria-invalid={!!errors.otherDietary}
                 aria-describedby={
                   errors.otherDietary ? "otherDietary-error" : undefined
@@ -412,7 +490,7 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
                 message={errors.otherDietary}
               />
             </>
-          )}
+          ) : null}
         </fieldset>
 
         <SelectField
@@ -436,16 +514,16 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
         </SelectField>
 
         <fieldset
-          className={`${fieldsetClass} ${fieldsetErrorClass(!!errors.firstHackathon)}`}
+          className={`${checkboxFieldsetClass} ${fieldsetErrorClass(!!errors.firstHackathon)}`}
           aria-describedby={
             errors.firstHackathon ? "firstHackathon-error" : undefined
           }
         >
-          <legend className={legendClass}>
+          <legend className={fieldsetLegendClass}>
             Is this your first hackathon?
             <span aria-hidden="true"> *</span>
           </legend>
-          <div className="flex gap-6">
+          <div className={inlineRadioGroupClass}>
             <CustomRadio
               id="firstHackathon-yes"
               name="firstHackathon"

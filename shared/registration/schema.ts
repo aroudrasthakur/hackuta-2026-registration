@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { COUNTRIES_OF_RESIDENCE } from "./countries";
 import {
   DIETARY_OPTIONS,
   FIELD_LIMITS,
@@ -6,6 +7,8 @@ import {
   HACKATHON_ID,
   HEAR_ABOUT_OPTIONS,
   LEVELS_OF_STUDY,
+  MAJOR_OTHER_OPTION,
+  MAJORS,
   MAX_AGE,
   MAX_GRADUATION_YEAR,
   MIN_AGE,
@@ -13,6 +16,7 @@ import {
   RACE_ETHNICITY_OPTIONS,
   TSHIRT_SIZES,
 } from "./constants";
+import { MLH_SCHOOLS_SET } from "./mlhSchools";
 
 export function isValidPhone(value: string) {
   const digits = value.replace(/\D/g, "");
@@ -39,6 +43,9 @@ function optionalHttpUrl(label: string) {
       message: `Enter a valid ${label.toLowerCase()} URL.`,
     });
 }
+
+const COUNTRIES_SET = new Set<string>(COUNTRIES_OF_RESIDENCE);
+const MAJORS_SET = new Set<string>(MAJORS);
 
 const levelOfStudySchema = z.enum(LEVELS_OF_STUDY, {
   message: "Please select a level of study.",
@@ -87,14 +94,24 @@ export const registrationPayloadSchema = z
     school: z
       .string()
       .trim()
-      .min(1, "School / university is required.")
-      .max(FIELD_LIMITS.school, "School name is too long."),
+      .min(1, "Please select a school or university.")
+      .max(FIELD_LIMITS.school, "School name is too long.")
+      .refine((value) => MLH_SCHOOLS_SET.has(value), "Please select a school from the list."),
+    countryOfResidence: z
+      .string()
+      .trim()
+      .min(1, "Please select your country of residence.")
+      .refine((value) => COUNTRIES_SET.has(value), "Please select a country from the list."),
     levelOfStudy: levelOfStudySchema,
     major: z
       .string()
       .trim()
-      .min(1, "Major / field of study is required.")
-      .max(FIELD_LIMITS.major, "Major is too long."),
+      .min(1, "Please select a major or field of study.")
+      .max(FIELD_LIMITS.major, "Major is too long.")
+      .refine(
+        (value) => MAJORS_SET.has(value) || (value !== MAJOR_OTHER_OPTION && value.length > 0),
+        "Please select a major from the list or describe your field of study.",
+      ),
     graduationYear: requiredInteger(
       "Graduation year",
       MIN_GRADUATION_YEAR,
@@ -102,6 +119,12 @@ export const registrationPayloadSchema = z
     ),
     gender: genderSchema,
     raceEthnicity: z.array(raceEthnicitySchema).default([]),
+    otherRaceEthnicity: z
+      .string()
+      .trim()
+      .max(FIELD_LIMITS.otherRaceEthnicity, "Race / ethnicity details are too long.")
+      .optional()
+      .transform((value) => value || undefined),
     dietaryRestrictions: z.array(dietaryOptionSchema).default([]),
     otherDietary: z
       .string()
@@ -146,11 +169,18 @@ export const registrationPayloadSchema = z
   })
   .strict()
   .superRefine((data, ctx) => {
-    if (data.dietaryRestrictions.includes("Other") && !data.otherDietary) {
+    if (data.dietaryRestrictions.includes("Allergies") && !data.otherDietary) {
       ctx.addIssue({
         code: "custom",
         path: ["otherDietary"],
-        message: "Please describe your dietary restriction.",
+        message: "Please describe your food allergies.",
+      });
+    }
+    if (data.raceEthnicity.includes("Other (Please Specify)") && !data.otherRaceEthnicity) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["otherRaceEthnicity"],
+        message: "Please specify your race or ethnicity.",
       });
     }
   });

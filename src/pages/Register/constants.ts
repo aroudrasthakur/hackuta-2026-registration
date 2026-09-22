@@ -4,6 +4,8 @@ export {
   GENDERS,
   HEAR_ABOUT_OPTIONS,
   LEVELS_OF_STUDY,
+  MAJOR_OTHER_OPTION,
+  MAJORS,
   MAX_GRADUATION_YEAR,
   MIN_GRADUATION_YEAR,
   MLH_CODE_OF_CONDUCT_URL,
@@ -11,3 +13,5 @@ export {
   RACE_ETHNICITY_OPTIONS,
   TSHIRT_SIZES,
 } from "../../../shared/registration/constants";
+export { COUNTRIES_OF_RESIDENCE } from "../../../shared/registration/countries";
+export { MLH_SCHOOLS } from "../../../shared/registration/mlhSchools";

@@ -1,34 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { MIN_GRADUATION_YEAR } from "../../shared/registration/constants";
 import { isValidPhone } from "../../shared/registration/schema";
-import { INITIAL_FORM, type ApplicationFormData } from "../../shared/registration/types";
 import { validateApplicationForm } from "../../shared/registration/validation";
-
-function validForm(): ApplicationFormData {
-  return {
-    ...INITIAL_FORM,
-    firstName: "Sam",
-    lastName: "Test",
-    phone: "5551234567",
-    age: "20",
-    school: "UT Arlington",
-    levelOfStudy: "Undergraduate - Junior",
-    major: "Computer Science",
-    graduationYear: String(MIN_GRADUATION_YEAR),
-    gender: "Male",
-    tshirtSize: "M",
-    firstHackathon: true,
-    hearAbout: "Discord",
-    emergencyContactName: "Jane Test",
-    emergencyContactPhone: "5559876543",
-    codeOfConductAgreed: true,
-    mlhDataSharingConsent: true,
-  };
-}
+import { validRegistrationForm } from "../fixtures/validRegistrationForm";
 
 describe("validateApplicationForm candidate building", () => {
   it("treats blank numeric fields as invalid numbers", () => {
-    const form = validForm();
+    const form = validRegistrationForm();
     form.age = "   ";
     form.graduationYear = "";
 
@@ -37,7 +14,7 @@ describe("validateApplicationForm candidate building", () => {
   });
 
   it("maps unchecked consent to undefined", () => {
-    const form = validForm();
+    const form = validRegistrationForm();
     form.codeOfConductAgreed = false;
     form.mlhDataSharingConsent = false;
     form.mlhCommunicationsConsent = false;

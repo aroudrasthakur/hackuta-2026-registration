@@ -1,18 +1,22 @@
 import type { z } from "zod";
+import type { CountryOfResidence } from "./countries";
 import type {
   DIETARY_OPTIONS,
   GENDERS,
   HEAR_ABOUT_OPTIONS,
   LEVELS_OF_STUDY,
+  MAJORS,
   RACE_ETHNICITY_OPTIONS,
   TSHIRT_SIZES,
 } from "./constants";
+import type { MlhSchool } from "./mlhSchools";
 import { registrationPayloadSchema } from "./schema";
 
 export type LevelOfStudy = (typeof LEVELS_OF_STUDY)[number];
 export type Gender = (typeof GENDERS)[number];
 export type RaceEthnicity = (typeof RACE_ETHNICITY_OPTIONS)[number];
 export type DietaryOption = (typeof DIETARY_OPTIONS)[number];
+export type Major = (typeof MAJORS)[number];
 export type TshirtSize = (typeof TSHIRT_SIZES)[number];
 export type HearAboutOption = (typeof HEAR_ABOUT_OPTIONS)[number];
 
@@ -21,12 +25,15 @@ export type ApplicationFormData = {
   lastName: string;
   phone: string;
   age: string;
-  school: string;
+  school: MlhSchool | "";
+  countryOfResidence: CountryOfResidence | "";
   levelOfStudy: LevelOfStudy | "";
-  major: string;
+  major: Major | "";
+  otherMajor: string;
   graduationYear: string;
   gender: Gender | "";
   raceEthnicity: RaceEthnicity[];
+  otherRaceEthnicity: string;
   dietaryRestrictions: DietaryOption[];
   otherDietary: string;
   tshirtSize: TshirtSize | "";
@@ -54,10 +61,13 @@ export const FIELD_ORDER: FieldName[] = [
   "phone",
   "age",
   "school",
+  "countryOfResidence",
   "levelOfStudy",
   "major",
+  "otherMajor",
   "graduationYear",
   "gender",
+  "otherRaceEthnicity",
   "otherDietary",
   "tshirtSize",
   "firstHackathon",
@@ -78,11 +88,14 @@ export const INITIAL_FORM: ApplicationFormData = {
   phone: "",
   age: "",
   school: "",
+  countryOfResidence: "",
   levelOfStudy: "",
   major: "",
+  otherMajor: "",
   graduationYear: "",
   gender: "",
   raceEthnicity: [],
+  otherRaceEthnicity: "",
   dietaryRestrictions: [],
   otherDietary: "",
   tshirtSize: "",

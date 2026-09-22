@@ -1,6 +1,9 @@
 import { makeFunctionReference } from "convex/server";
 import type { RegistrationPayload } from "../../../shared/registration/types";
-import { validateResume } from "../../../shared/registration/resume";
+import {
+  RESUME_FILENAME_HEADER,
+  validateResume,
+} from "../../../shared/registration/resume";
 import {
   mapConvexErrorToUserMessage,
   mapResumeUploadHttpError,
@@ -75,7 +78,10 @@ export async function uploadResume(file: File): Promise<ResumeUploadSession> {
   try {
     response = await fetch(`${convexSiteUrl}/resume-upload`, {
       method: "POST",
-      headers: { "Content-Type": "application/pdf" },
+      headers: {
+        "Content-Type": "application/pdf",
+        [RESUME_FILENAME_HEADER]: file.name,
+      },
       body: file,
     });
   } catch {

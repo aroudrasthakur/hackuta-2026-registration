@@ -5,6 +5,10 @@ import { describe, expect, it, vi } from "vitest";
 import schema from "../../convex/schema";
 import { RESUME_UPLOAD_BUCKET } from "../../convex/lib/rateLimitBuckets";
 import { MIN_GRADUATION_YEAR } from "../../shared/registration/constants";
+import {
+  RESUME_FILENAME_HEADER,
+  RESUME_TEST_CONTENT_LENGTH_HEADER,
+} from "../../shared/registration/resume";
 
 const modules = import.meta.glob("../../convex/**/*.ts", { eager: false });
 const remove = makeFunctionReference<"mutation">("registrations:deleteResumeUpload");
@@ -61,6 +65,23 @@ const uploadHeaders = {
   "X-Test-Origin": TEST_ORIGIN,
   "X-Forwarded-For": "192.0.2.10",
 };
+
+function uploadBodyLength(body: BodyInit) {
+  if (body instanceof Uint8Array) return body.byteLength;
+  if (body instanceof ArrayBuffer) return body.byteLength;
+  if (typeof body === "string") return new TextEncoder().encode(body).byteLength;
+  return 0;
+}
+
+function buildUploadHeaders(body: BodyInit, overrides: Record<string, string> = {}) {
+  const length = String(uploadBodyLength(body));
+  return {
+    ...uploadHeaders,
+    [RESUME_TEST_CONTENT_LENGTH_HEADER]: length,
+    [RESUME_FILENAME_HEADER]: "resume.pdf",
+    ...overrides,
+  };
+}
 
 const createTest = () => convexTest(schema, modules);
 type TestInstance = ReturnType<typeof createTest>;
@@ -297,10 +318,11 @@ describe("resume HTTP validation and lifecycle", () => {
 
   it("parses, stores, and binds a valid PDF through the HTTP upload route", async () => {
     const t = await authTest();
+    const body = new Uint8Array(await pdfBytes());
     const result = await t.fetch("/resume-upload", {
       method: "POST",
-      headers: uploadHeaders,
-      body: await pdfBytes(),
+      headers: buildUploadHeaders(body),
+      body,
     });
     expect(result.status).toBe(201);
     const upload = await result.json() as { storageId: string; uploadToken: string };
@@ -316,10 +338,11 @@ describe("resume HTTP validation and lifecycle", () => {
 
   it("rejects a file that only has a PDF-looking prefix", async () => {
     const t = createTest();
+    const body = "%PDF-1.7\nnot actually a PDF";
     const result = await t.fetch("/resume-upload", {
       method: "POST",
-      headers: uploadHeaders,
-      body: "%PDF-1.7\nnot actually a PDF",
+      headers: buildUploadHeaders(body),
+      body,
     });
     expect(result.status).toBe(422);
     expect(await t.run((ctx) => ctx.db.system.query("_storage").collect())).toEqual([]);
@@ -327,53 +350,101 @@ describe("resume HTTP validation and lifecycle", () => {
 
   it("accepts PDF content types with parameters", async () => {
     const t = createTest();
+    const body = new Uint8Array(await pdfBytes());
     const result = await t.fetch("/resume-upload", {
       method: "POST",
-      headers: { ...uploadHeaders, "Content-Type": "application/pdf; charset=binary" },
-      body: await pdfBytes(),
+      headers: buildUploadHeaders(body, {
+        "Content-Type": "application/pdf; charset=binary",
+      }),
+      body,
     });
     expect(result.status).toBe(201);
   });
 
   it("rejects non-PDF content types before reading the body", async () => {
     const t = createTest();
+    const body = new Uint8Array(await pdfBytes());
     const result = await t.fetch("/resume-upload", {
       method: "POST",
-      headers: { ...uploadHeaders, "Content-Type": "text/plain" },
-      body: await pdfBytes(),
+      headers: buildUploadHeaders(body, { "Content-Type": "text/plain" }),
+      body,
     });
     expect(result.status).toBe(415);
   });
 
   it("rejects empty uploads and oversized bodies", async () => {
     const t = createTest();
+    const emptyBody = new Uint8Array();
     expect((await t.fetch("/resume-upload", {
       method: "POST",
-      headers: uploadHeaders,
-      body: new Uint8Array(),
+      headers: buildUploadHeaders(emptyBody),
+      body: emptyBody,
     })).status).toBe(413);
 
+    const oversizedLength = 5 * 1024 * 1024 + 1;
     expect((await t.fetch("/resume-upload", {
       method: "POST",
-      headers: uploadHeaders,
-      body: new Uint8Array(5 * 1024 * 1024 + 1),
+      headers: buildUploadHeaders(new Uint8Array(1), {
+        [RESUME_TEST_CONTENT_LENGTH_HEADER]: String(oversizedLength),
+      }),
+      body: new Uint8Array(1),
     })).status).toBe(413);
+  });
+
+  it("rejects uploads without Content-Length before reading the body", async () => {
+    const t = createTest();
+    const body = new Uint8Array(await pdfBytes());
+    const result = await t.fetch("/resume-upload", {
+      method: "POST",
+      headers: {
+        ...uploadHeaders,
+        [RESUME_FILENAME_HEADER]: "resume.pdf",
+      },
+      body,
+    });
+    expect(result.status).toBe(411);
+  });
+
+  it("rejects disallowed file extensions before storage", async () => {
+    const t = createTest();
+    const body = new Uint8Array(await pdfBytes());
+    const result = await t.fetch("/resume-upload", {
+      method: "POST",
+      headers: buildUploadHeaders(body, { [RESUME_FILENAME_HEADER]: "resume.php" }),
+      body,
+    });
+    expect(result.status).toBe(415);
+  });
+
+  it("rejects Content-Length mismatches", async () => {
+    const t = createTest();
+    const body = new Uint8Array(await pdfBytes());
+    const result = await t.fetch("/resume-upload", {
+      method: "POST",
+      headers: buildUploadHeaders(body, {
+        [RESUME_TEST_CONTENT_LENGTH_HEADER]: String(body.byteLength + 10),
+      }),
+      body,
+    });
+    expect(result.status).toBe(413);
   });
 
   it("rate limits repeated uploads from the same client address", async () => {
     const t = createTest();
     for (let index = 0; index < 5; index += 1) {
+      const body = new Uint8Array(await pdfBytes());
       const ok = await t.fetch("/resume-upload", {
         method: "POST",
-        headers: uploadHeaders,
-        body: await pdfBytes(),
+        headers: buildUploadHeaders(body),
+        body,
       });
       expect(ok.status).toBe(201);
     }
+    const body = new Uint8Array(await pdfBytes());
     const limited = await t.fetch("/resume-upload", {
       method: "POST",
-      headers: uploadHeaders,
-      body: await pdfBytes(),
+      headers: buildUploadHeaders(body),
+      body,
     });
     expect(limited.status).toBe(429);
   });

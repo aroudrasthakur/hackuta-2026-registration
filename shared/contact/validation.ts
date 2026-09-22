@@ -1,4 +1,10 @@
 import { isValidEmailSyntax, normalizeEmail } from "../lib/normalizeEmail";
+import {
+  assertSafePlainText,
+  containsCrlf,
+  sanitizeEmailHeaderValue,
+  sanitizePlainText,
+} from "../lib/sanitizeInput";
 
 export const CONTACT_LIMITS = {
   nameMin: 1,
@@ -8,8 +14,6 @@ export const CONTACT_LIMITS = {
   messageMin: 1,
   messageMax: 5000,
 } as const;
-
-const CRLF_PATTERN = /[\r\n]/;
 
 export type ContactFormInput = {
   name: string;
@@ -33,12 +37,15 @@ export function validateContactForm(input: ContactFormInput):
     return { success: false, error: "Invalid submission." };
   }
 
-  const name = typeof input.name === "string" ? input.name.trim() : "";
-  const emailRaw = typeof input.email === "string" ? input.email.trim() : "";
-  const subjectRaw = typeof input.subject === "string" ? input.subject.trim() : "";
-  const message = typeof input.message === "string" ? input.message.trim() : "";
+  const name = assertSafePlainText(typeof input.name === "string" ? input.name : "");
+  const emailRaw = sanitizePlainText(typeof input.email === "string" ? input.email : "");
+  const subjectRaw = sanitizePlainText(typeof input.subject === "string" ? input.subject : "");
+  const message = assertSafePlainText(
+    typeof input.message === "string" ? input.message : "",
+    { allowNewlines: true },
+  );
 
-  if (name.length < CONTACT_LIMITS.nameMin || name.length > CONTACT_LIMITS.nameMax) {
+  if (!name || name.length < CONTACT_LIMITS.nameMin || name.length > CONTACT_LIMITS.nameMax) {
     return { success: false, error: "Please enter a valid name." };
   }
   if (emailRaw.length === 0 || emailRaw.length > CONTACT_LIMITS.emailMax) {
@@ -48,14 +55,23 @@ export function validateContactForm(input: ContactFormInput):
   if (!email || !isValidEmailSyntax(email)) {
     return { success: false, error: "Please enter a valid email address." };
   }
-  if (CRLF_PATTERN.test(name) || CRLF_PATTERN.test(emailRaw) || CRLF_PATTERN.test(subjectRaw) || CRLF_PATTERN.test(message)) {
+  if (containsCrlf(emailRaw) || containsCrlf(subjectRaw)) {
     return { success: false, error: "Invalid submission." };
   }
   if (subjectRaw.length > CONTACT_LIMITS.subjectMax) {
     return { success: false, error: "Subject is too long." };
   }
-  if (message.length < CONTACT_LIMITS.messageMin || message.length > CONTACT_LIMITS.messageMax) {
+  if (!message || message.length < CONTACT_LIMITS.messageMin || message.length > CONTACT_LIMITS.messageMax) {
     return { success: false, error: "Please enter a message." };
+  }
+
+  let subject: string;
+  try {
+    subject = subjectRaw
+      ? sanitizeEmailHeaderValue(subjectRaw, CONTACT_LIMITS.subjectMax)
+      : "";
+  } catch {
+    return { success: false, error: "Invalid submission." };
   }
 
   return {
@@ -63,7 +79,7 @@ export function validateContactForm(input: ContactFormInput):
     payload: {
       name,
       email,
-      subject: subjectRaw,
+      subject,
       message,
     },
   };

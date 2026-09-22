@@ -1,3 +1,5 @@
+import { sanitizeEmailHeaderValue } from "../../shared/lib/sanitizeInput";
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -99,7 +101,9 @@ export function buildContactEmailContent(payload: {
   message: string;
   submittedAt: number;
 }) {
-  const subjectLine = payload.subject || "HackUTA website contact form";
+  const subjectLine = payload.subject
+    ? sanitizeEmailHeaderValue(payload.subject, 150)
+    : "HackUTA website contact form";
   const submitted = new Date(payload.submittedAt).toISOString();
 
   const text = [

@@ -1,7 +1,14 @@
 import { httpRouter, makeFunctionReference } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { auth } from "./auth";
-import { MAX_RESUME_BYTES } from "../shared/registration/resume";
+import {
+  ALLOWED_RESUME_CONTENT_TYPE,
+  isAllowedResumeFilename,
+  MAX_RESUME_BYTES,
+  parseResumeContentLength,
+  RESUME_FILENAME_HEADER,
+  RESUME_TEST_CONTENT_LENGTH_HEADER,
+} from "../shared/registration/resume";
 import { validateResumePdfBytes } from "./pdfValidation";
 import { getRegistrationAllowedOrigins, isOriginAllowed } from "./registrationSecurity";
 
@@ -73,12 +80,41 @@ const uploadResume = httpAction(async (ctx, request) => {
   if (!origin) {
     return response(request, { error: "Origin is not allowed." }, 403);
   }
-  if (request.headers.get("content-type")?.split(";", 1)[0]?.trim() !== "application/pdf") {
+  if (
+    request.headers.get("content-type")?.split(";", 1)[0]?.trim() !==
+    ALLOWED_RESUME_CONTENT_TYPE
+  ) {
     return response(request, { error: "Please upload a PDF." }, 415, origin);
   }
-  const declaredLength = Number(request.headers.get("content-length"));
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_RESUME_BYTES) {
-    return response(request, { error: "The PDF is too large." }, 413, origin);
+
+  let contentLength = parseResumeContentLength(request.headers.get("content-length"));
+  if (
+    !contentLength.ok &&
+    contentLength.reason === "missing" &&
+    request.headers.get("x-test-origin") === CONVEX_TEST_ORIGIN
+  ) {
+    contentLength = parseResumeContentLength(
+      request.headers.get(RESUME_TEST_CONTENT_LENGTH_HEADER),
+    );
+  }
+  if (!contentLength.ok) {
+    if (contentLength.reason === "missing") {
+      return response(
+        request,
+        { error: "Content-Length header is required." },
+        411,
+        origin,
+      );
+    }
+    if (contentLength.reason === "too_large" || contentLength.reason === "empty") {
+      return response(request, { error: "The PDF is too large." }, 413, origin);
+    }
+    return response(request, { error: "Invalid upload request." }, 400, origin);
+  }
+
+  const resumeFilename = request.headers.get(RESUME_FILENAME_HEADER);
+  if (!isAllowedResumeFilename(resumeFilename)) {
+    return response(request, { error: "Please upload a PDF file." }, 415, origin);
   }
 
   try {
@@ -90,14 +126,19 @@ const uploadResume = httpAction(async (ctx, request) => {
   }
 
   const bytes = new Uint8Array(await request.arrayBuffer());
-  if (bytes.length === 0 || bytes.length > MAX_RESUME_BYTES) {
+  if (bytes.length !== contentLength.length || bytes.length > MAX_RESUME_BYTES) {
     return response(request, { error: "The PDF must be between 1 byte and 5 MB." }, 413, origin);
   }
 
   try {
     await validateResumePdfBytes(bytes);
-  } catch {
-    return response(request, { error: "The file is not a valid PDF." }, 422, origin);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message.trim() : "";
+    const message =
+      detail === "The PDF has too many pages."
+        ? detail
+        : "The file is not a valid PDF.";
+    return response(request, { error: message }, 422, origin);
   }
 
   let storageId;
@@ -121,7 +162,10 @@ http.route({
     if (!origin) return response(request, { error: "Origin is not allowed." }, 403);
     const result = response(request, null, 204, origin);
     result.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-    result.headers.set("Access-Control-Allow-Headers", "Content-Type");
+    result.headers.set(
+      "Access-Control-Allow-Headers",
+      `Content-Type, ${RESUME_FILENAME_HEADER}`,
+    );
     result.headers.set("Access-Control-Max-Age", "600");
     return result;
   }),

@@ -23,6 +23,15 @@ describe("validateContactForm", () => {
     expect(result.success).toBe(false);
   });
 
+  it("rejects HTML markup in contact fields", () => {
+    const result = validateContactForm({
+      name: "Sam",
+      email: "sam@example.com",
+      message: "<script>alert(1)</script>",
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("rejects header injection", () => {
     const result = validateContactForm({
       name: "Sam\r\nBcc: evil@example.com",

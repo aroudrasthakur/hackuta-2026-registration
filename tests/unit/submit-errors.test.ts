@@ -3,6 +3,7 @@ import {
   isResumeFieldMessage,
   mapConvexErrorToUserMessage,
   mapResumeUploadHttpError,
+  mapUploadError,
   SUBMIT_ERROR_MESSAGE,
 } from "../../shared/registration/submitErrors";
 
@@ -38,6 +39,21 @@ describe("submit error mapping", () => {
       "Resume upload is unavailable. Please try again later or contact us.",
     );
     expect(mapResumeUploadHttpError(500, {})).toBe(
+      "We couldn't upload your resume. Please try again.",
+    );
+  });
+
+  it("translates technical upload server messages into applicant-friendly copy", () => {
+    expect(mapResumeUploadHttpError(403, { error: "Origin is not allowed." })).toBe(
+      "Resume upload is unavailable. Please try again later or contact us.",
+    );
+    expect(mapResumeUploadHttpError(411, { error: "Content-Length header is required." })).toBe(
+      "We couldn't upload your resume. Please try again.",
+    );
+    expect(mapUploadError(new Error("The PDF has too many pages."))).toBe(
+      "The PDF has too many pages.",
+    );
+    expect(mapUploadError(new Error("Unexpected server failure"))).toBe(
       "We couldn't upload your resume. Please try again.",
     );
   });

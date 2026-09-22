@@ -56,6 +56,7 @@ import { resumeFileKey } from "../../../shared/registration/resume";
 import {
   isResumeFieldMessage,
   mapConvexErrorToUserMessage,
+  mapUploadError,
   SIGN_IN_REQUIRED_MESSAGE,
 } from "../../../shared/registration/submitErrors";
 import {
@@ -151,7 +152,7 @@ export function ApplicationForm({ onSubmitted }: { onSubmitted: () => void }) {
             session = await uploadResume(form.resume);
             setResumeUpload({ fileKey, session });
           } catch (err) {
-            const message = mapConvexErrorToUserMessage(err);
+            const message = mapUploadError(err);
             setErrors((prev) => ({ ...prev, resume: message }));
             focusFirstInvalidField({ resume: message });
             return;

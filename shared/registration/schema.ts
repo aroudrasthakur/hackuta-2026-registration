@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { containsDangerousMarkup, sanitizePlainText } from "../lib/sanitizeInput";
 import { COUNTRIES_OF_RESIDENCE } from "./countries";
 import {
   DIETARY_OPTIONS,
@@ -30,6 +31,54 @@ export function isValidHttpUrl(value: string) {
   } catch {
     return false;
   }
+}
+
+function safePlainText(options: {
+  max: number;
+  min?: number;
+  message?: string;
+  allowNewlines?: boolean;
+}) {
+  const { max, min = 1, message = "Invalid input.", allowNewlines = false } = options;
+  return z
+    .string()
+    .transform((value) => sanitizePlainText(value, { allowNewlines }))
+    .pipe(
+      z
+        .string()
+        .min(min, message)
+        .max(max)
+        .refine(
+          (value) => !containsDangerousMarkup(value),
+          "Please remove HTML or script content.",
+        ),
+    );
+}
+
+function safeOptionalPlainText(options: {
+  max: number;
+  allowNewlines?: boolean;
+  tooLongMessage?: string;
+}) {
+  const {
+    max,
+    allowNewlines = false,
+    tooLongMessage = "Text is too long.",
+  } = options;
+  return z
+    .string()
+    .transform((value) => sanitizePlainText(value, { allowNewlines }))
+    .pipe(
+      z
+        .string()
+        .max(max, tooLongMessage)
+        .refine(
+          (value) => value === "" || !containsDangerousMarkup(value),
+          "Please remove HTML or script content.",
+        ),
+    )
+    .optional()
+    .transform((value) => value || undefined);
 }
 
 function optionalHttpUrl(label: string) {
@@ -74,44 +123,35 @@ const requiredInteger = (label: string, min: number, max: number) =>
 
 export const registrationPayloadSchema = z
   .object({
-    firstName: z
-      .string()
-      .trim()
-      .min(1, "First name is required.")
-      .max(FIELD_LIMITS.name, "First name is too long."),
-    lastName: z
-      .string()
-      .trim()
-      .min(1, "Last name is required.")
-      .max(FIELD_LIMITS.name, "Last name is too long."),
-    phone: z
-      .string()
-      .trim()
-      .min(1, "Phone number is required.")
-      .max(FIELD_LIMITS.phone, "Phone number is too long.")
-      .refine(isValidPhone, "Enter a valid phone number."),
+    firstName: safePlainText({
+      max: FIELD_LIMITS.name,
+      message: "First name is required.",
+    }),
+    lastName: safePlainText({
+      max: FIELD_LIMITS.name,
+      message: "Last name is required.",
+    }),
+    phone: safePlainText({
+      max: FIELD_LIMITS.phone,
+      message: "Phone number is required.",
+    }).refine(isValidPhone, "Enter a valid phone number."),
     age: requiredInteger("Age", MIN_AGE, MAX_AGE),
-    school: z
-      .string()
-      .trim()
-      .min(1, "Please select a school or university.")
-      .max(FIELD_LIMITS.school, "School name is too long.")
-      .refine((value) => MLH_SCHOOLS_SET.has(value), "Please select a school from the list."),
-    countryOfResidence: z
-      .string()
-      .trim()
-      .min(1, "Please select your country of residence.")
-      .refine((value) => COUNTRIES_SET.has(value), "Please select a country from the list."),
+    school: safePlainText({
+      max: FIELD_LIMITS.school,
+      message: "Please select a school or university.",
+    }).refine((value) => MLH_SCHOOLS_SET.has(value), "Please select a school from the list."),
+    countryOfResidence: safePlainText({
+      max: 100,
+      message: "Please select your country of residence.",
+    }).refine((value) => COUNTRIES_SET.has(value), "Please select a country from the list."),
     levelOfStudy: levelOfStudySchema,
-    major: z
-      .string()
-      .trim()
-      .min(1, "Please select a major or field of study.")
-      .max(FIELD_LIMITS.major, "Major is too long.")
-      .refine(
-        (value) => MAJORS_SET.has(value) || (value !== MAJOR_OTHER_OPTION && value.length > 0),
-        "Please select a major from the list or describe your field of study.",
-      ),
+    major: safePlainText({
+      max: FIELD_LIMITS.major,
+      message: "Please select a major or field of study.",
+    }).refine(
+      (value) => MAJORS_SET.has(value) || (value !== MAJOR_OTHER_OPTION && value.length > 0),
+      "Please select a major from the list or describe your field of study.",
+    ),
     graduationYear: requiredInteger(
       "Graduation year",
       MIN_GRADUATION_YEAR,
@@ -119,19 +159,15 @@ export const registrationPayloadSchema = z
     ),
     gender: genderSchema,
     raceEthnicity: z.array(raceEthnicitySchema).default([]),
-    otherRaceEthnicity: z
-      .string()
-      .trim()
-      .max(FIELD_LIMITS.otherRaceEthnicity, "Race / ethnicity details are too long.")
-      .optional()
-      .transform((value) => value || undefined),
+    otherRaceEthnicity: safeOptionalPlainText({
+      max: FIELD_LIMITS.otherRaceEthnicity,
+      tooLongMessage: "Race / ethnicity details are too long.",
+    }),
     dietaryRestrictions: z.array(dietaryOptionSchema).default([]),
-    otherDietary: z
-      .string()
-      .trim()
-      .max(FIELD_LIMITS.otherDietary, "Dietary details are too long.")
-      .optional()
-      .transform((value) => value || undefined),
+    otherDietary: safeOptionalPlainText({
+      max: FIELD_LIMITS.otherDietary,
+      tooLongMessage: "Dietary details are too long.",
+    }),
     tshirtSize: tshirtSizeSchema,
     firstHackathon: z.boolean({
       message: "Please let us know if this is your first hackathon.",
@@ -141,23 +177,19 @@ export const registrationPayloadSchema = z
     linkedin: optionalHttpUrl("LinkedIn"),
     github: optionalHttpUrl("GitHub"),
     portfolio: optionalHttpUrl("Portfolio"),
-    accessibilityNeeds: z
-      .string()
-      .trim()
-      .max(FIELD_LIMITS.accessibilityNeeds, "Accessibility details are too long.")
-      .optional()
-      .transform((value) => value || undefined),
-    emergencyContactName: z
-      .string()
-      .trim()
-      .min(1, "Emergency contact name is required.")
-      .max(FIELD_LIMITS.name, "Emergency contact name is too long."),
-    emergencyContactPhone: z
-      .string()
-      .trim()
-      .min(1, "Emergency contact phone is required.")
-      .max(FIELD_LIMITS.phone, "Emergency contact phone is too long.")
-      .refine(isValidPhone, "Enter a valid phone number."),
+    accessibilityNeeds: safeOptionalPlainText({
+      max: FIELD_LIMITS.accessibilityNeeds,
+      allowNewlines: true,
+      tooLongMessage: "Accessibility details are too long.",
+    }),
+    emergencyContactName: safePlainText({
+      max: FIELD_LIMITS.name,
+      message: "Emergency contact name is required.",
+    }),
+    emergencyContactPhone: safePlainText({
+      max: FIELD_LIMITS.phone,
+      message: "Emergency contact phone is required.",
+    }).refine(isValidPhone, "Enter a valid phone number."),
     codeOfConductAgreed: z.literal(true, {
       message: "You must agree to the MLH Code of Conduct to continue.",
     }),

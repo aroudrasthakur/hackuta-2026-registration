@@ -37,13 +37,11 @@ export function SearchableSelect({
 }: SearchableSelectProps) {
   const listboxId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
-  const [query, setQuery] = useState(value);
+  const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  useEffect(() => {
-    setQuery(value);
-  }, [value]);
+  const inputValue = open ? query : value;
 
   const filteredOptions = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -58,32 +56,37 @@ export function SearchableSelect({
       .slice(0, MAX_RESULTS);
   }, [featuredOptions, options, query]);
 
-  useEffect(() => {
+  const activeOptionIndex =
+    filteredOptions.length === 0
+      ? 0
+      : Math.min(activeIndex, filteredOptions.length - 1);
+
+  const openList = () => {
+    setQuery(value);
     setActiveIndex(0);
-  }, [filteredOptions]);
+    setOpen(true);
+  };
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
       if (!containerRef.current?.contains(event.target as Node)) {
         setOpen(false);
-        setQuery(value);
       }
     };
     document.addEventListener("mousedown", handlePointerDown);
     return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, [value]);
+  }, []);
 
   const errorId = `${id}-error`;
 
   const selectOption = (option: string) => {
     onChange(option);
-    setQuery(option);
     setOpen(false);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (!open && (event.key === "ArrowDown" || event.key === "Enter")) {
-      setOpen(true);
+      openList();
       return;
     }
 
@@ -99,15 +102,14 @@ export function SearchableSelect({
       return;
     }
 
-    if (event.key === "Enter" && open && filteredOptions[activeIndex]) {
+    if (event.key === "Enter" && open && filteredOptions[activeOptionIndex]) {
       event.preventDefault();
-      selectOption(filteredOptions[activeIndex]!);
+      selectOption(filteredOptions[activeOptionIndex]!);
       return;
     }
 
     if (event.key === "Escape") {
       setOpen(false);
-      setQuery(value);
     }
   };
 
@@ -128,15 +130,16 @@ export function SearchableSelect({
           aria-describedby={error ? errorId : undefined}
           className={fieldClass(error)}
           placeholder={placeholder}
-          value={query}
+          value={inputValue}
           onChange={(event) => {
             setQuery(event.target.value);
+            setActiveIndex(0);
             setOpen(true);
             if (!event.target.value.trim()) {
               onChange("");
             }
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={openList}
           onKeyDown={handleKeyDown}
           autoComplete="off"
         />
@@ -154,7 +157,7 @@ export function SearchableSelect({
               <button
                 type="button"
                 className={`block w-full px-3 py-2 text-left text-sm hover:bg-(--clay) ${
-                  index === activeIndex || option === value
+                  index === activeOptionIndex || option === value
                     ? "bg-(--clay) font-medium text-(--ink)"
                     : "text-(--ink)"
                 }`}

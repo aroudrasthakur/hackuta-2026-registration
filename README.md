@@ -32,7 +32,13 @@ Organizer contact: [hello@hackuta.org](mailto:hello@hackuta.org)
 
 | Doc | Contents |
 | --- | --- |
-| **[docs/API.md](docs/API.md)** | Convex queries, mutations, actions, HTTP routes, rate limits |
+| **[docs/README.md](docs/README.md)** | Documentation index |
+| **[docs/API.md](docs/API.md)** | Endpoints, payloads, errors, validation, rate limits |
+| **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** | Codebase layout, data flows, design decisions |
+| **[docs/SECURITY.md](docs/SECURITY.md)** | Input validation, CSP, upload hardening, secrets |
+| **[docs/OPERATIONS.md](docs/OPERATIONS.md)** | Deploy checklist, env vars, maintenance, incidents |
+| **[docs/TESTING.md](docs/TESTING.md)** | Unit/e2e tests, CI, coverage |
+| **[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)** | PR workflow and conventions |
 | [HACKUTA_DESIGN_CONTEXT.md](HACKUTA_DESIGN_CONTEXT.md) | Odyssey theme, palette, UX principles |
 | [.env.example](.env.example) | Environment variable template |
 
@@ -195,16 +201,18 @@ convex/                 Schema, queries, mutations, actions, HTTP routes, auth, 
   email/                SMTP send actions and templates
 shared/
   auth/                 OTP rate-limit helpers (client + server)
-  registration/         Zod validation, types, resume constants
+  registration/         Zod validation, types, resume policy, submitErrors
   contact/              Contact form validation
-security/csp.ts         Production CSP (must match vercel.json)
+  lib/                  sanitizeInput, normalizeEmail
+security/               CSP + response headers (must match vercel.json)
+docs/                   API, architecture, security, operations, testing
 src/pages/
   SignIn/               Email OTP sign-in
   Register/             Multi-step application form
   Profile/              Applicant dashboard
   Contact/              Public contact form
 tests/                  Vitest unit tests and Playwright specs
-docs/API.md             Full API reference
+docs/                   See docs/README.md
 ```
 
 ## Scripts
@@ -244,11 +252,13 @@ See [.github/workflows/ci.yml](.github/workflows/ci.yml).
 
 ## Security notes
 
-- Production CSP lives in `security/csp.ts` and `vercel.json`. `tests/register.spec.ts` asserts they stay identical — change both together.
-- Resume uploads validate PDF structure, enforce a 5 MB cap, and require an origin allowlist. Upload tokens expire in 30 minutes and are single-use at registration time.
-- OTP codes are hashed by Convex Auth, never logged, and never returned in API responses.
-- Admin queries (`getApplicationsByHackathon`) require an identity listed in `REGISTRATION_ADMIN_IDENTITY_KEYS`.
-- Wipe all data (destructive): `npx convex run admin:resetAllData --prod`
+See **[docs/SECURITY.md](docs/SECURITY.md)** for the full security model. Summary:
+
+- Strict CSP + Trusted Types (`security/csp.ts`, synced with `vercel.json`)
+- Server-side input sanitization on registration and contact forms
+- Resume uploads: PDF-only allowlist, Content-Length pre-check, isolated Convex storage, rate limits
+- OTP codes hashed; registration email taken from verified JWT only
+- Admin queries gated by `REGISTRATION_ADMIN_IDENTITY_KEYS`
 
 ## Admin and maintenance
 

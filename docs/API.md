@@ -1,11 +1,15 @@
 # HackUTA 2026 Registration — API Reference
 
-Backend for the registration app runs on [Convex](https://convex.dev). The frontend talks to Convex through:
+Backend runs on [Convex](https://convex.dev). The frontend uses:
 
-- **WebSocket client** — queries, mutations, and actions at `VITE_CONVEX_URL` (`https://<deployment>.convex.cloud`)
-- **HTTP actions** — resume upload and Convex Auth OIDC endpoints at `VITE_CONVEX_SITE_URL` (`https://<deployment>.convex.site`)
+- **WebSocket client** — queries, mutations, actions at `VITE_CONVEX_URL` (`https://<deployment>.convex.cloud`)
+- **HTTP actions** — resume upload and Auth OIDC at `VITE_CONVEX_SITE_URL` (`https://<deployment>.convex.site`)
 
-Function names below use the Convex `module:function` convention (e.g. `registrations:register`).
+Function names use Convex `module:function` notation (e.g. `registrations:register`).
+
+**See also:** [SECURITY.md](SECURITY.md) · [ARCHITECTURE.md](ARCHITECTURE.md)
+
+---
 
 ## Authentication
 
@@ -18,20 +22,13 @@ Auth uses [@convex-dev/auth](https://labs.convex.dev/auth) with a single **email
 | Step | Arguments | Result |
 | --- | --- | --- |
 | Request code | `{ provider: "email", params: { email: "user@example.com" } }` | Sends OTP email; starts rate-limit cooldown |
-| Verify code | `{ provider: "email", params: { email: "user@example.com", code: "123456" } }` | Returns `{ signingIn: true }` on success; establishes JWT session |
+| Verify code | `{ provider: "email", params: { email: "user@example.com", code: "123456" } }` | `{ signingIn: true }`; establishes JWT session |
 
-OTP details:
-
-- 6-digit code, 10-minute expiry
-- Hashed at rest; never returned in API responses
-- Resend cooldown: **30 seconds**; max **5 sends/hour** per email
-- Max **5 failed verification attempts/hour** (Convex Auth)
-
-Client helpers: `shared/auth/otpRateLimit.ts`, `rateLimits:getOtpSendCooldown`.
+OTP: 6 digits, 10-minute expiry, hashed at rest, never returned in responses. Resend cooldown **30 s**; max **5 sends/hour**; max **5 failed verifications/hour**.
 
 ### Sign out (action)
 
-**`auth:signOut`** — `{}` — invalidates the current session.
+**`auth:signOut`** — `{}` — invalidates session.
 
 ### Session check (query)
 
@@ -39,14 +36,10 @@ Client helpers: `shared/auth/otpRateLimit.ts`, `rateLimits:getOtpSendCooldown`.
 
 ### HTTP — OIDC discovery
 
-Registered by `auth.addHttpRoutes(http)` in `convex/http.ts`:
-
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/.well-known/openid-configuration` | OIDC discovery (issuer = Convex site URL) |
-| `GET` | `/.well-known/jwks.json` | Public JWKS for JWT verification |
-
-No OAuth/social providers are configured.
+| `GET` | `/.well-known/openid-configuration` | OIDC discovery |
+| `GET` | `/.well-known/jwks.json` | Public JWKS |
 
 ---
 
@@ -54,74 +47,33 @@ No OAuth/social providers are configured.
 
 ### `queries:getCurrentUser`
 
-**Auth:** required
-
-Returns the signed-in user profile: id, email, displayName, `hasApplication`, etc.
-
-```typescript
-{}  // no args
-```
+**Auth:** required · `{}` — user profile (id, email, displayName, `hasApplication`, …).
 
 ### `queries:getMyApplication`
 
-**Auth:** required
-
-Returns the caller’s embedded application object for a hackathon.
-
-```typescript
-{ hackathonId?: string }  // default: "hackuta-2026"
-```
+**Auth:** required · `{ hackathonId?: string }` — embedded application (default hackathon: `hackuta-2026`).
 
 ### `queries:getHackathonBySlug`
 
-**Auth:** none
-
-Public hackathon metadata lookup.
-
-```typescript
-{ slug: string }
-```
+**Auth:** none · `{ slug: string }` — public hackathon metadata.
 
 ### `applicant:getApplicantRoutingState`
 
-**Auth:** optional (works for signed-out visitors)
-
-Routing helper used by guards and `/` redirect logic.
-
-```typescript
-{ hackathonId?: string }  // default: "hackuta-2026"
-```
-
-Returns auth status, verified email, registration presence/status, and `hasSubmittedRegistration`.
+**Auth:** optional · `{ hackathonId?: string }` — routing for guards and `/` redirect.
 
 ### `applicant:getMyApplicantDashboard`
 
-**Auth:** required
-
-Profile page payload: application summary, answers, resume status, timeline, hackathon dates.
-
-```typescript
-{ hackathonId?: string }
-```
+**Auth:** required · `{ hackathonId?: string }` — profile page payload (status, answers, timeline).
 
 ### `rateLimits:getOtpSendCooldown`
 
-**Type:** mutation · **Auth:** none
-
-OTP resend cooldown for the sign-in UI. Lookup attempts are rate-limited server-side to reduce email enumeration.
+**Type:** mutation · **Auth:** none · `{ email: string }`
 
 ```typescript
-{ email: string }
+{ waitSeconds: number; hourlyLimitReached: boolean }
 ```
 
-Response:
-
-```typescript
-{
-  waitSeconds: number;        // seconds until next send allowed (0 = ready)
-  hourlyLimitReached: boolean // true when 5/hour cap hit
-}
-```
+Lookup attempts are rate-limited; invalid emails get a neutral response.
 
 ---
 
@@ -129,9 +81,7 @@ Response:
 
 ### `registrations:register` / `registrations:submitRegistration`
 
-**Auth:** required
-
-Validates the registration payload (shared Zod schema), binds a resume via upload token, sets application status to `submitted`, and sends a confirmation email.
+**Auth:** required · Aliases sharing one handler.
 
 ```typescript
 {
@@ -140,29 +90,26 @@ Validates the registration payload (shared Zod schema), binds a resume via uploa
 }
 ```
 
-`submitRegistration` is an alias with the same handler.
+Validates payload (Zod + sanitization), binds resume via token, sets status `submitted`, sends confirmation email. **Email in `data` is ignored** — server uses verified auth email.
 
-Creates the applicant profile and application on first submit. Sign-in alone does not write to the app `users` table (aside from the minimal Convex Auth session record).
+First submit creates the applicant record; sign-in alone does not write application data.
+
+**Common errors (thrown as mutation errors):**
+
+| Message | Cause |
+| --- | --- |
+| `You have already submitted an application.` | Duplicate submit |
+| `Please upload a valid PDF resume of 5 MB or smaller.` | Bad/missing resume metadata or token |
+| `This resume is already attached to another application.` | Storage ID reuse |
+| `Authentication required.` | Missing/invalid session |
 
 ### `registrations:deleteResumeUpload`
 
-**Auth:** none (capability-token gated)
-
-Discards an unconsumed resume upload session and deletes orphaned storage.
-
-```typescript
-{ uploadToken: string }
-```
+**Auth:** none (capability token) · `{ uploadToken: string }` — deletes unconsumed session + storage.
 
 ### `applicant:claimLegacyRegistrationIfEligible`
 
-**Auth:** required
-
-After OTP sign-in, claims a single anonymous legacy registration matching the verified email.
-
-```typescript
-{ hackathonId?: string }
-```
+**Auth:** required · `{ hackathonId?: string }` — claims single anonymous legacy registration matching verified email.
 
 ---
 
@@ -172,20 +119,18 @@ After OTP sign-in, claims a single anonymous legacy registration matching the ve
 
 **Auth:** none
 
-Validates and rate-limits the contact form, then sends email to `CONTACT_EMAIL_TO`.
-
 ```typescript
 {
   name: string;
   email: string;
   subject?: string;
   message: string;
-  website?: string;   // honeypot — must be empty
-  clientKey?: string; // hashed client id for rate limiting
+  website?: string;    // honeypot — must be empty
+  clientKey?: string;    // hashed for rate limiting
 }
 ```
 
-Rate limit: **5 submissions per 10 minutes** per client key.
+Validates + sanitizes input, rate-limits, sends to `CONTACT_EMAIL_TO`. Generic error on SMTP/rate-limit failure: `We couldn't send your message. Please try again later.`
 
 ---
 
@@ -195,91 +140,138 @@ Base URL: `VITE_CONVEX_SITE_URL`
 
 ### `POST /resume-upload`
 
-Upload a PDF resume before submitting the application form.
+Upload a PDF resume before form submission.
 
-**Auth:** browser origin allowlist (`REGISTRATION_ALLOWED_ORIGINS` + `SITE_URL` origin). No JWT required.
+**Auth:** browser origin allowlist (`REGISTRATION_ALLOWED_ORIGINS` + `SITE_URL`). No JWT.
 
 **Request headers:**
 
-| Header | Value |
-| --- | --- |
-| `Content-Type` | `application/pdf` |
-| `Origin` | Must match allowlist |
+| Header | Required | Value |
+| --- | --- | --- |
+| `Content-Type` | Yes | `application/pdf` |
+| `Content-Length` | Yes | 1 – 5,242,880 (5 MB). Rejected **before** body read if missing or too large |
+| `Origin` | Yes | Must match allowlist |
+| `X-Resume-Filename` | Yes | Must end in `.pdf`; no `/` or `\` |
 
-**Body:** raw PDF bytes (max **5 MB**)
+**Body:** raw PDF bytes
+
+**Validation pipeline:**
+
+1. Origin → Content-Type → Content-Length → filename allowlist
+2. Rate limit (IP + global)
+3. Read body; verify size matches header
+4. PDF magic bytes (`%PDF-`)
+5. `pdf-lib` structural parse; 1–25 pages
+6. Store in Convex `_storage` (not web server disk)
+7. Return capability token (30 min TTL, single-use at register)
 
 **Success `201`:**
 
 ```json
 {
   "storageId": "<convex-storage-id>",
-  "uploadToken": "<64-char-hex-capability-token>"
+  "uploadToken": "<64-char-hex>"
 }
 ```
 
-**Errors:**
+**Error responses:** JSON `{ "error": "<message>" }`
 
 | Status | Condition |
 | --- | --- |
+| `400` | Invalid Content-Length format |
 | `403` | Origin not allowed |
-| `413` | Empty or > 5 MB |
-| `415` | Not `application/pdf` |
-| `422` | Invalid PDF structure |
+| `411` | Missing Content-Length |
+| `413` | Empty, oversize, or length mismatch |
+| `415` | Wrong Content-Type or filename |
+| `422` | Invalid PDF or too many pages |
 | `429` | Rate limit exceeded |
 | `500` | Storage failure |
 
-Rate limits: **5 uploads per client IP / 10 min**, **100 global / 10 min**.
+Client maps these to friendly copy via `shared/registration/submitErrors.ts`.
 
-Upload tokens expire in **30 minutes** and are consumed when calling `registrations:register`.
+**Rate limits:** 5 uploads / IP / 10 min · 100 global / 10 min.
 
 ### `OPTIONS /resume-upload`
 
-CORS preflight for resume upload.
+CORS preflight. Allowed headers: `Content-Type`, `X-Resume-Filename`.
+
+---
+
+## Error responses
+
+### HTTP actions
+
+All error bodies:
+
+```json
+{ "error": "Human-readable message" }
+```
+
+Responses include `X-Content-Type-Options: nosniff` and `Cache-Control: no-store`.
+
+### Mutations and actions
+
+Convex throws `Error` with a string message. The client maps known messages through `mapConvexErrorToUserMessage()` / `mapUploadError()`; unknown errors become generic copy.
+
+### Registration field validation
+
+Client-side Zod errors return per-field messages from `shared/registration/schema.ts`. Server-side validation failures on `register` return a generic failure (no field breakdown) to avoid leaking validation internals to API callers.
+
+---
+
+## Validation reference
+
+| Input | Module | Rules (summary) |
+| --- | --- | --- |
+| Registration | `shared/registration/schema.ts` | Strict Zod; enums for MLH fields; phone/URL formats; HTML/script rejected |
+| Registration server | `shared/registration/validation.ts` | `validateRegistrationPayload()` |
+| Sanitization | `shared/lib/sanitizeInput.ts` | Control chars stripped; markup patterns rejected |
+| Contact | `shared/contact/validation.ts` | Length limits, email syntax, honeypot, CRLF block |
+| Resume (client) | `shared/registration/resume.ts` | `.pdf` only, ≤ 5 MB |
+| Resume (server) | `convex/pdfValidation.ts` | Magic bytes, parse, ≤ 25 pages |
+
+Full field list: `shared/registration/schema.ts` and `shared/registration/constants.ts`.
 
 ---
 
 ## Internal functions
 
-These are not callable from the public client. Listed for operators and tests.
+Not callable from the public client.
 
 ### Rate limiting (`rateLimits`)
 
 | Function | Purpose |
 | --- | --- |
-| `assertOtpSendAllowed` | Throws if OTP cooldown or hourly cap exceeded |
-| `recordOtpSend` | Records an OTP send in `rateLimits` bucket `otp_send` |
-| `clearOtpSendLimitsForEmail` | Clears OTP limit rows for an email (testing/admin) |
-| `assertContactSubmissionAllowed` | Throws if contact rate limit exceeded |
-| `recordContactSubmission` | Records contact submission in bucket `contact_form` |
+| `assertOtpSendAllowed` | OTP cooldown / hourly cap |
+| `recordOtpSend` | Bucket `otp_send` |
+| `clearOtpSendLimitsForEmail` | Support/testing reset |
+| `assertContactSubmissionAllowed` | Contact rate limit |
+| `recordContactSubmission` | Bucket `contact_form` |
 
 ### Resume pipeline (`registrations`)
 
 | Function | Purpose |
 | --- | --- |
-| `reserveResumeUpload` | Rate-limit gate before storing PDF |
-| `recordVerifiedResumeUpload` | Creates upload session after validation |
-| `cleanupExpiredResumeUploads` | Purges expired sessions and stale rows (also cron) |
+| `reserveResumeUpload` | Pre-storage rate limit |
+| `recordVerifiedResumeUpload` | Create upload session |
+| `cleanupExpiredResumeUploads` | Cron + scheduled cleanup |
 
 ### Email (Node actions)
 
 | Function | Purpose |
 | --- | --- |
-| `email/sendOtpEmail:sendOtpEmail` | Sends 6-digit OTP via SMTP |
-| `email/sendContactEmail:sendContactEmail` | Forwards contact form |
-| `email/sendApplicationConfirmationEmail:sendApplicationConfirmationEmail` | Post-submission confirmation |
+| `email/sendOtpEmail:sendOtpEmail` | OTP mail |
+| `email/sendContactEmail:sendContactEmail` | Contact forward |
+| `email/sendApplicationConfirmationEmail:sendApplicationConfirmationEmail` | Post-submit confirmation |
+
+User content in HTML emails is escaped via `escapeHtml()`.
 
 ### Admin / seed
 
 | Function | Purpose |
 | --- | --- |
-| `admin:resetAllData` | Wipes all app data, auth tables, and storage |
-| `seed:seedHackathon` | Inserts `hackuta-2026` hackathon if missing |
-
-### Auth internals
-
-| Function | Purpose |
-| --- | --- |
-| `auth:store` | Convex Auth internal DB access during sign-in/out |
+| `admin:resetAllData` | Wipe all data + storage |
+| `seed:seedHackathon` | Insert `hackuta-2026` if missing |
 
 ---
 
@@ -287,13 +279,9 @@ These are not callable from the public client. Listed for operators and tests.
 
 ### `queries:getApplicationsByHackathon`
 
-**Auth:** admin — caller’s `tokenIdentifier` must appear in `REGISTRATION_ADMIN_IDENTITY_KEYS`.
+**Auth:** admin — `tokenIdentifier` in `REGISTRATION_ADMIN_IDENTITY_KEYS`.
 
-Lists all users with applications for a hackathon.
-
-```typescript
-{ hackathonId: string }
-```
+`{ hackathonId: string }` — lists users with applications.
 
 ---
 
@@ -304,6 +292,7 @@ Lists all users with applications for a hackathon.
 | `otp_send` | normalized email | 5 sends | 1 hour |
 | `otp_send` | normalized email | 30 s cooldown | between sends |
 | `contact_form` | client key hash | 5 submissions | 10 minutes |
+| `contact_form` | email hash | 3 submissions | 10 minutes |
 | `resume_upload` | client IP hash | 5 uploads | 10 minutes |
 | `resume_upload` | global | 100 uploads | 10 minutes |
 
@@ -311,41 +300,30 @@ Lists all users with applications for a hackathon.
 
 ## Data model
 
-Schema: `convex/schema.ts`, application fields: `convex/applicationFields.ts`.
+Schema: `convex/schema.ts` · Application fields: `convex/applicationFields.ts`.
 
 ### `users`
 
-Extends Convex Auth user records with app fields. Each user holds at most one embedded `applications` object.
-
-Key fields: `email`, `identityKey`, `authSubject`, `displayName`, `isAnonymous`, `applications`.
+Convex Auth user + embedded `applications` (one per user).
 
 ### Embedded `applications`
 
 | Field | Notes |
 | --- | --- |
-| `hackathonId` | e.g. `"hackuta-2026"` |
+| `hackathonId` | `"hackuta-2026"` |
 | `status` | `draft` \| `submitted` \| `accepted` \| `waitlisted` \| `rejected` \| `withdrawn` |
 | `eligibilityStatus` | `unreviewed` \| `eligible` \| `ineligible` |
-| `resumeStorageId` | PDF in Convex `_storage` |
-| Applicant fields | name, school, demographics, MLH consents, etc. (see `shared/registration/schema.ts`) |
+| `resumeStorageId` | PDF in `_storage` |
+| Applicant fields | See `shared/registration/schema.ts` |
 
-### `hackathons`
+### Other tables
 
-`slug`, `name`, `startsAt`, `endsAt`, `registrationOpensAt`, `registrationClosesAt`.
-
-Seed record (`hackuta-2026`): Nov 14–15, 2026; registration opens Sep 1, 2026.
-
-### `rateLimits`
-
-`bucket`, `key`, `createdAt` — used for OTP, contact, and resume upload throttling.
-
-### `resumeUploadSessions`
-
-`token`, `createdAt`, `storageId`, `verifiedAt`, `consumedAt` — capability tokens from HTTP upload.
-
-### Convex Auth tables
-
-`authSessions`, `authAccounts`, `authRefreshTokens`, `authVerificationCodes`, `authVerifiers`, `authRateLimits` — managed by `@convex-dev/auth`.
+| Table | Purpose |
+| --- | --- |
+| `hackathons` | Event dates and registration window |
+| `rateLimits` | Throttle counters |
+| `resumeUploadSessions` | Upload capability tokens |
+| Auth tables | Managed by `@convex-dev/auth` |
 
 ---
 
@@ -355,33 +333,33 @@ Seed record (`hackuta-2026`): Nov 14–15, 2026; registration opens Sep 1, 2026.
 | --- | --- |
 | Every 15 minutes | `registrations:cleanupExpiredResumeUploads` |
 
-Defined in `convex/crons.ts`.
-
 ---
 
 ## Frontend → API map
 
-| UI surface | API |
+| UI | API |
 | --- | --- |
-| Sign-in OTP send/verify | `auth:signIn` |
-| Sign-out | `auth:signOut` |
-| OTP cooldown labels | `rateLimits:getOtpSendCooldown` |
+| Sign-in | `auth:signIn`, `auth:signOut` |
+| OTP cooldown | `rateLimits:getOtpSendCooldown` |
 | Legacy claim | `applicant:claimLegacyRegistrationIfEligible` |
-| Route guards / `/` redirect | `applicant:getApplicantRoutingState` |
-| Profile page | `applicant:getMyApplicantDashboard` |
-| Resume upload widget | `POST /resume-upload` |
-| Submit application | `registrations:register` |
+| Route guards | `applicant:getApplicantRoutingState` |
+| Profile | `applicant:getMyApplicantDashboard` |
+| Resume widget | `POST /resume-upload` |
+| Submit form | `registrations:register` |
 | Discard resume | `registrations:deleteResumeUpload` |
-| Contact form | `contact:submitContactMessage` |
+| Contact | `contact:submitContactMessage` |
 
 ---
 
-## Validation
+## Response headers (frontend)
 
-Registration payloads are validated server-side with the same Zod schema as the client:
+Production SPA headers from `vercel.json` (source of truth: `security/csp.ts`, `security/headers.ts`):
 
-- `shared/registration/schema.ts` — field rules and limits
-- `shared/registration/constants.ts` — enums (gender, t-shirt size, etc.)
-- `shared/contact/validation.ts` — contact form
+- `Content-Security-Policy` — strict allowlist; Convex in `connect-src`
+- `Strict-Transport-Security`
+- `X-Frame-Options: DENY`
+- `Permissions-Policy`
+- `Referrer-Policy`
+- `X-Robots-Tag: noindex`
 
-Resume rules: `shared/registration/resume.ts` (PDF only, max 5 MB).
+Tests: `tests/unit/security.test.ts`.
